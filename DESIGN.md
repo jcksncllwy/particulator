@@ -2,7 +2,7 @@
 
 A browser tool for building particle animation effects for websites: images
 dissolve into dots, and the dots fly between images as the page scrolls or the
-visitor interacts. Particulator is open source and lives at
+visitor interacts. Particulator is open source (MIT) and lives at
 `jacksoncallaway.com/tools/particulator`.
 
 It started as the WebGPU particle engine built for christopherngai.com
@@ -344,14 +344,13 @@ a pasted embed on a Webflow page without help.
 
 ## Open questions
 
-- **Licence:** MIT for everything, or MIT for the runtime with the editor
-  source-available?
 - **Hosting the runtime:** jsDelivr from npm (free, standard) vs serving
   `embed.js` from jacksoncallaway.com.
 - **Dev studio integration:** ship Vite/Next plugins in phase 2, or start
   with the CLI alone?
 - **Default particle budget per tier:** decide after benchmarking on a
   mid-range Android and an older iPhone.
-- **Image rights in examples:** Chris's images need his OK before
-  christopherngai.com ships as a public example. Otherwise use our own art.
+- **Example images:** the christopherngai.com example reuses images already
+  public on his site. They stay his work and are excluded from the MIT licence
+  (noted in `apps/examples/christopherngai/README`).
 - **Analytics/telemetry:** none in v1.

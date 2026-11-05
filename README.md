@@ -10,3 +10,5 @@ Status: design. See [DESIGN.md](DESIGN.md).
 
 It grew out of the WebGPU particle engine built for
 [christopherngai.com](https://github.com/jcksncllwy/christopherngai-site).
+
+MIT licensed. See [LICENSE](LICENSE).
