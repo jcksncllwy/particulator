@@ -49,16 +49,19 @@ Editor = Runtime + UI that edits project.json live
 ```
 packages/
   core/        runtime: WebGPU engine, Canvas 2D fallback, drivers, config schema
-  dotter/      image → dot cloud (runs in a worker; shared by editor + CLI)
+  dotter/      image → dot cloud (worker; used by the runtime at load and by the editor)
+  studio/      the editor UI, host-agnostic (page adapter + storage adapter)
+  cli/         `particulator studio`: local save server for the dev studio
   embed/       <particle-stage> web component, single-file build for <script> use
   react/       <ParticleStage> wrapper
 apps/
-  editor/      the tool (Vite + React), deployed to /tools/particulator
+  web/         the standalone editor at /tools/particulator (studio + mock page)
   examples/    christopherngai.com rebuilt as example #1, plus small demos
 ```
 
-`core` is framework-agnostic ESM and has no dependencies. The editor imports
-`core` directly, so the preview is the real runtime, never an imitation.
+`core` is framework-agnostic ESM and has no dependencies. `studio` depends on
+`core` (the preview is always the real runtime) but never the other way
+around: production pages load only `core`/`embed`.
 
 ## The pieces
 
@@ -79,8 +82,13 @@ live, and tweaking it is half the creative work.
   `{x, y, size, opacity, rgb}`, packed binary. This extends the current
   6-byte format with colour.
 - **Inputs:** PNG/JPG/WebP and SVG. Text, through a font, comes later.
-- Runs in a Web Worker so the editor stays responsive while sliders move. The
-  CLI uses the same code.
+- Runs in a Web Worker so the editor stays responsive while sliders move.
+- **Runs at load time in production too.** Effects ship source images and
+  dotter settings, not dot data. Sampling is seeded and deterministic, so the
+  same image and settings give the same dots everywhere. That keeps the
+  deliverable to images (which every site builder hosts) plus a few KB of
+  JSON, at the cost of ~50–200 ms of generation in a worker on load.
+  Precomputed dots stay available as an optional optimization for devs.
 
 ### 2. Placement
 
@@ -94,7 +102,9 @@ There are two anchoring modes:
 
 - **Viewport:** fractions of the viewport, with breakpoints (desktop / tablet /
   mobile). This is what Chris's site does and what designers will mostly use.
-- **Element:** follows a DOM element (`anchor: "#hero-art"`). The runtime reads
+- **Element:** follows a DOM element (`anchor: "[data-particulator=dog]"`,
+  or any selector). `data-particulator` attributes are the recommended way to
+  bind, since page builders let designers set custom attributes without code. The runtime reads
   `getBoundingClientRect()` once per frame for anchored scenes, which costs one
   uniform update. This lets a designer put an empty div in their page builder
   and say "form the image here."
@@ -195,86 +205,142 @@ Graphic first:
 
 ## The editor
 
-A static single-page app. There is **no backend** in v1: projects live in
-IndexedDB and export as files.
+**One editor, three hosts.** `studio` is a host-agnostic package. Each host
+plugs in a *page adapter* (where the page comes from) and a *storage adapter*
+(where saves go):
+
+| Host | For | Page | Saves to |
+|---|---|---|---|
+| **Dev studio** | devs | their real app on localhost | `effect.json` + images written into their repo |
+| **Web app** (`/tools/particulator`) | designers without a project | a mock page with sections | IndexedDB, then export a snippet or zip |
+| **Live overlay** (`?particulator=edit`) | page-builder users | their real published page, via the embed script | copy the updated snippet back into the builder |
+
+In every case `effect.json` is the contract. With the dev studio it isn't an
+export at all: it's the saved state, committed with the code, and production
+reads exactly what the studio wrote (the Theatre.js model).
 
 ### Layout
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ Project ▾   Desktop | Tablet | Mobile    ▶ Preview   Export  │
+│ Effect ▾   (web app: Desktop | Tablet | Mobile)   ▶   Save/Export │
 ├───────────┬──────────────────────────────────────┬───────────┤
 │ Scenes    │                                      │ Inspector │
-│  1 icarus │          Artboard (live stage)       │  Dotter   │
-│  2 dog    │   drag/scale/rotate scenes, guides,  │  Placement│
-│  3 dinner │   page-section bands for scroll mode │  Look     │
+│  1 icarus │      Page (real or mock) + stage     │  Dotter   │
+│  2 dog    │   drag/scale/rotate scenes, click    │  Placement│
+│  3 dinner │   an element to bind a scene to it   │  Look     │
 │  + add    │                                      │  Motion   │
 ├───────────┴──────────────────────────────────────┴───────────┤
 │ Timeline: [icarus]──flow──[dog]──steer──[dinner]──…   ◀ ▶ ⏯ │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-- **Artboard:** the real runtime rendering at the chosen breakpoint size.
-  Scenes have handles for drag, scale and rotate. In scroll mode, horizontal
-  bands show the page sections.
+In the dev studio and the live overlay, the panels float over the real page
+in a shadow DOM (styles can't leak either way) and can be collapsed to see
+the page clean.
+
+- **Page:** the real runtime rendering on the real page (or the mock page in
+  the web app). Scenes have handles for drag, scale and rotate.
+  Breakpoints are real browser widths, so in the dev studio you resize the
+  window, and in the web app you pick a device frame.
+- **Element picking:** click an element to bind the selected scene to it. The
+  studio prefers `data-particulator` attributes and IDs, and warns when a
+  selector is fragile (`nth-child` chains, generated class names).
 - **Scenes list:** drop images in. The dot cloud regenerates live as you
   change the Dotter settings.
 - **Timeline:** scenes as blocks, transitions as the links between them. Click
   a link to set its preset, assignment and duration. Kinematic transitions
   scrub, and simulated ones play.
-- **Inspector:** tabs for Dotter, Placement, Look and Motion. Each has an
+- **Inspector:** tabs for Dotter, Placement, Look and Motion, each with an
   "Advanced" drawer.
-- **Preview:** a fake scrolling page with N sections, or a **live site** (see
-  below).
+- **Perf HUD:** fps, CPU and GPU timings, as on the christopherngai.com panel.
 
-### Previewing on a real site
+### Dev studio
 
-Designers need to see the effect on their own page, but a cross-origin page in
-an iframe can't be inspected. Instead, the embed script has an edit mode: once
-the snippet is installed, visiting `yoursite.com/?particulator=edit` loads the
-editor UI as an overlay on the real page. Element anchoring can then be done
-by clicking elements. Changes still save by export, since there's no backend.
-This is a phase 2 feature, but it shapes the embed's design from day one.
+```bash
+npm i particulator
+npx particulator studio      # local save server; prints the dev snippet
+```
 
-### Export
+- The CLI serves a small save endpoint on localhost. The studio, mounted in
+  the dev build, posts edits to it, and it writes `effect.json` and copies
+  dropped images into the project's assets folder. Hot reload picks up the
+  changes. Vite and Next plugins can hide the setup, but the CLI keeps it
+  stack-agnostic, plain HTML included.
+- Without the save server, the studio falls back to the File System Access
+  API (pick the file once, then save in place), then to download.
+- In production, `<ParticleStage effect={effect} />` (or `createStage`) loads
+  only the runtime. The studio is a separate, lazily imported package, gated
+  on dev mode, and never ships.
+- Handles several effects per page and SPA route changes (effects keyed by id).
 
-1. **Embed snippet** (designers, page builders):
+### Web app
+
+The same studio with a mock page (N scroll sections, adjustable heights) and
+IndexedDB storage. When the design is done, export it:
+
+1. **Embed snippet** (page builders):
    ```html
-   <script type="module" src="https://cdn.jsdelivr.net/npm/particulator/embed.js"></script>
-   <particle-stage src="/particulator/my-effect.particulator"></particle-stage>
+   <script type="module" src="https://cdn.jsdelivr.net/npm/particulator@1/embed.js"></script>
+   <particle-stage config='{"scenes":[{"id":"dog","src":"https://…/dog.webp", …}], …}'></particle-stage>
    ```
-   A `.particulator` file is one binary bundle (config + dot clouds) for the
-   designer to upload next to their site. Small projects can inline it as
-   base64 in the snippet, so it's a single paste.
-2. **npm** (devs): `npm i particulator`, then `createStage(canvas, project)`, or
-   `<ParticleStage project={...} />` from `particulator/react`.
-3. **Preset link:** motion and look settings (no images) compressed into the
-   URL hash, so people can share a style. Full projects with images are shared
-   as `.particulator` files.
+   Upload the images to the site's asset library, paste their URLs into the
+   editor (which rewrites the snippet), tag sections with `data-particulator`,
+   and paste the snippet.
+2. **Zip** (self-hosted/static sites): `effect.json`, the images, `embed.js` and
+   an `example.html` that runs as soon as you open it.
+3. **npm config** (devs who started in the web app): `effect.json` + images,
+   used with `createStage` / `<ParticleStage>`, and editable later in the dev
+   studio.
+4. **Preset link:** motion and look settings (no images) compressed into the
+   URL hash, for sharing a style.
+5. **Video** (phase 4): render a transition to MP4/WebM with WebCodecs at a
+   fixed frame rate, for social, decks and portfolios.
+
+### Live overlay
+
+The embed script loads the studio when the page URL has `?particulator=edit`,
+so page-builder users can place scenes on their real published page and
+click elements to bind them. It can't write to their site, so saving means
+copying the updated snippet (or attributes) back into the builder. It's
+harmless if a visitor opens it, but site owners can disable it
+(`<particle-stage edit="off">`).
+
+### Later: hosted publishing
+
+A **Publish** button that uploads to jacksoncallaway.com and returns a snippet
+with a URL (the Spline model) is the lowest-friction path for designers, but
+it needs storage, auth and moderation. Only if people ask for it.
 
 ## Phases
 
 **Phase 1: runtime extraction.** Done when christopherngai.com is rebuilt on
 the package with no visible change.
-- `core` from the current WebGPU engine, with local-space clouds, viewport
-  placement with breakpoints, a fixed timestep, scroll-section/time/API
-  drivers, and Ease + Steer presets with dot/square/streak shapes.
-- `dotter` with blue-noise stippling and the basic controls.
-- The project schema (zod) and the `.particulator` bundle format.
+- `core` from the current WebGPU engine, with local-space clouds, viewport and
+  element placement with breakpoints, a fixed timestep,
+  scroll-section/time/API drivers, and Ease + Steer presets with
+  dot/square/streak shapes.
+- `dotter` with blue-noise stippling and the basic controls, running at load.
+- The `effect.json` schema (zod).
 - The Canvas 2D fallback, carried over.
 
-**Phase 2: editor v1.** Done when a designer can go from three PNGs to a
-pasted embed on a Webflow page without help.
-- Artboard, scenes list, inspector, timeline, preview page, export (snippet,
-  bundle, npm config), IndexedDB projects, perf HUD.
-- Element anchoring and the in-view trigger.
+**Phase 2: dev studio.** Done when the christopherngai.com scenes can be
+re-placed and retuned in the studio on the real page, saved to the repo, and
+deployed with no manual steps.
+- `studio` (page, scenes, inspector, timeline, element picking, perf HUD) +
+  the `cli` save server + the File System Access fallback.
+- Grows out of the existing tuning panel.
+
+**Phase 3: web app + export.** Done when a designer can go from three PNGs to
+a pasted embed on a Webflow page without help.
+- Mock page + IndexedDB adapters, the embed snippet, zip and npm exports.
 - Flow and Scatter/Gather presets, and the Sweep/Nearest assignments.
 
-**Phase 3: depth.**
-- The live-site edit overlay.
+**Phase 4: depth.**
+- Live overlay, video export.
 - Trails/feedback, glyph shape, palette/image colour, blend modes.
 - Pour and Flock, plus a true physarum trail field.
-- SVG and text sources, and video-frame sources.
+- SVG, text and video-frame sources.
 
 ## Open questions
 
@@ -282,6 +348,8 @@ pasted embed on a Webflow page without help.
   source-available?
 - **Hosting the runtime:** jsDelivr from npm (free, standard) vs serving
   `embed.js` from jacksoncallaway.com.
+- **Dev studio integration:** ship Vite/Next plugins in phase 2, or start
+  with the CLI alone?
 - **Default particle budget per tier:** decide after benchmarking on a
   mid-range Android and an older iPhone.
 - **Image rights in examples:** Chris's images need his OK before
