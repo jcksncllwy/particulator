@@ -72,6 +72,8 @@ export type Stage = {
   scenes: () => SceneInfo[];
   /** The transition in play: from scene, to scene, t (0..1). */
   transition: () => Transition;
+  /** Hold the stage on this scene whatever the driver says (the studio uses it to show scenes the driver can't reach); null resumes the driver. */
+  preview: number | null;
   destroy: () => void;
 };
 
@@ -137,6 +139,7 @@ export function createStage(opts: StageOptions): Stage {
   let showField = false;
   let pendingProgress = 0;
   let lastTr: Transition = { from: 0, to: 0, t: 0 };
+  let previewing: number | null = null;
 
   // Clock and field animation state (shared across engines so swaps are seamless).
   let time = 0, texOffX = 0, texOffY = 0, texZ = 0;
@@ -234,7 +237,8 @@ export function createStage(opts: StageOptions): Stage {
     acc += dtFrame;
 
     const n = effect.scenes.length;
-    const tr: Transition = driver.state(now, n);
+    const driven = driver.state(now, n);
+    const tr: Transition = previewing !== null && previewing < n ? { from: previewing, to: previewing, t: 0 } : driven;
     lastTr = tr;
     updateXforms();
     const A = xforms[tr.from], B = xforms[tr.to];
@@ -362,6 +366,8 @@ export function createStage(opts: StageOptions): Stage {
       };
     }),
     transition: () => lastTr,
+    get preview() { return previewing; },
+    set preview(i: number | null) { previewing = i; },
     destroy: () => {
       destroyed = true;
       cancelAnimationFrame(raf);

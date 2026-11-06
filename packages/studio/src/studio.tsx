@@ -37,10 +37,19 @@ function App({ store, initiallyHidden, onHiddenChange }: { store: Store; initial
       if (mod && e.key.toLowerCase() === "z") { e.preventDefault(); void (e.shiftKey ? store.redo() : store.undo()); return; }
       if (e.key === "`") { e.preventDefault(); setHidden((h) => !h); }
     };
+    // Scrolling the page hands the stage back to the driver.
+    const endPreview = (e: Event) => { if ((e.target as Element | null)?.tagName !== "PARTICULATOR-STUDIO" && store.stage.preview !== null) { store.stage.preview = null; store.emit(); } };
     const beforeUnload = (e: BeforeUnloadEvent) => { if (store.dirty) e.preventDefault(); };
     window.addEventListener("keydown", onKey);
     window.addEventListener("beforeunload", beforeUnload);
-    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("beforeunload", beforeUnload); };
+    window.addEventListener("wheel", endPreview, { passive: true });
+    window.addEventListener("scroll", endPreview, { passive: true, capture: true });
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("beforeunload", beforeUnload);
+      window.removeEventListener("wheel", endPreview);
+      window.removeEventListener("scroll", endPreview, { capture: true });
+    };
   }, [store]);
 
   if (hidden) return <button class="reveal panel" onClick={() => setHidden(false)} title="Show the studio (`)">particulator{store.dirty ? " •" : ""}</button>;

@@ -84,7 +84,7 @@ export function ScenesPanel({ store }: { store: Store }) {
       next = [...next, { id, source: { type: "image", src }, placement: { mode: "viewport", x: 0.5, y: 0.5, height: 0.5 } }];
     }
     await store.apply({ scenes: next });
-    store.select(next.length - 1);
+    store.goTo(next.length - 1);
   };
 
   const move = (i: number, d: number) => {
@@ -101,7 +101,7 @@ export function ScenesPanel({ store }: { store: Store }) {
   const duplicate = (i: number) => {
     const copy = structuredClone(scenes[i]);
     copy.id = `${copy.id}-copy`;
-    void store.apply({ scenes: [...scenes.slice(0, i + 1), copy, ...scenes.slice(i + 1)] }).then(() => store.select(i + 1));
+    void store.apply({ scenes: [...scenes.slice(0, i + 1), copy, ...scenes.slice(i + 1)] }).then(() => store.goTo(i + 1));
   };
 
   return (
@@ -178,8 +178,15 @@ function SceneTab({ store, setHover }: { store: Store; setHover: (r: DOMRect | n
   const sceneSpec = (spec: Spec, set: (s: SceneConfig, v: unknown) => void) => (
     <Control store={store} spec={spec} root={{ drift: 1, overflow: "hide", ...scene }} onChange={(v) => edit((s) => { set(s, v); return s; }, `scene:${i}:${spec.path}`)} />
   );
+  const d = store.effect.timeline.driver;
   return (
     <>
+      {!store.reachable(i) && d.type === "scroll" && (
+        <p class="warn">
+          No <code>{d.sections}</code> #{i + 1} on this page, so scrolling never reaches this scene. It's previewed while
+          selected; add a section for it to show on the page.
+        </p>
+      )}
       <Group title="Scene">
         <TextRow label="id" value={scene.id} commit={(v) => v && edit((s) => ({ ...s, id: v }))} />
         <div class="row"><span>source</span><span class="dim ellipsis" title={scene.source.src}>{scene.source.type}: {scene.source.src}</span></div>
