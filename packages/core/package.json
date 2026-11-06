@@ -1,0 +1,16 @@
+{
+  "name": "particulator",
+  "version": "0.0.0",
+  "description": "WebGPU runtime for image-to-particle animation effects",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./react": "./src/react.tsx"
+  },
+  "scripts": { "typecheck": "tsc -p ." },
+  "dependencies": { "@particulator/dotter": "workspace:*" },
+  "peerDependencies": { "react": ">=18" },
+  "peerDependenciesMeta": { "react": { "optional": true } },
+  "devDependencies": { "@types/react": "^19.2.0", "react": "^19.2.0" }
+}
