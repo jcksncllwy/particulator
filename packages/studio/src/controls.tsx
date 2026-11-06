@@ -137,7 +137,7 @@ export const MOTION: { title: string; specs: Spec[]; open?: boolean }[] = [
     title: "Crowd",
     open: false,
     specs: [
-      { kind: "toggle", path: "motion.crowd.enabled" },
+      { kind: "toggle", path: "motion.crowd.enabled", help: "particles in flight (or knocked off their rest spot) push each other apart" },
       { kind: "range", path: "motion.crowd.strength", min: 0, max: 15, step: 0.1 },
       { kind: "range", path: "motion.crowd.distance", min: 0, max: 150, step: 1, help: "displacement where the crowd force starts" },
       { kind: "range", path: "motion.crowd.cellPx", min: 2, max: 24, step: 1 },
