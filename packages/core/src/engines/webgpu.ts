@@ -19,7 +19,7 @@ const STEP_FIELDS = [
   "speedVar", "stagger", "sensorDist", "sensorAngle", "turnGain", "maxTurn", "alignMin", "zTime",
   "features", "octaves", "lacunarity", "gain", "ridged", "sharpness", "normMin", "normMax",
   ...SCENE_FIELDS.map((f) => `a${f}`), ...SCENE_FIELDS.map((f) => `b${f}`),
-  "pad0", "pad1", "pad2", "pad3",
+  "aShiftX", "aShiftY", "bShiftX", "bShiftY",
 ] as const;
 const RENDER_FIELDS = [
   "vw", "vh", "dpr", "alpha", "inkR", "inkG", "inkB", "size",
@@ -38,7 +38,7 @@ struct Particle {
   pos: vec2f, prev: vec2f, vel: vec2f,
   size: f32, opacity: f32, speed: f32, jitter: f32,
   driftOff: vec2f, driftSpd: vec2f,
-  driftRadius: f32, stagger: f32, landed: f32, pad: f32,
+  driftRadius: f32, stagger: f32, landed: f32, heading: f32,
 }
 `;
 
@@ -129,14 +129,21 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     // ---- steer: physarum-style flight + damped landing
     let switchAt = 0.1 + p.stagger * u.stagger;
     var T: vec4f;
-    if (u.t >= switchAt) { T = targetOf(i, ${scene("b")}); } else { T = targetOf(i, ${scene("a")}); }
+    var hi: f32;
+    var shift: vec2f;
+    if (u.t >= switchAt) { T = targetOf(i, ${scene("b")}); hi = u.bIndex; shift = vec2f(u.bShiftX, u.bShiftY); }
+    else { T = targetOf(i, ${scene("a")}); hi = u.aIndex; shift = vec2f(u.aShiftX, u.aShiftY); }
+    // A new target scene starts a flight; resting particles ride along with their scene.
+    if (hi != p.heading) { p.heading = hi; p.landed = 2.0; }
+    let flying = p.landed > 1.5;
+    if (!flying) { p.pos += shift; }
     let g = T.xy + d - p.pos;
     let dist = max(length(g), 1e-6);
     let dir = g / dist;
     let topSpeed = u.maxSpeed * (1.0 + u.speedVar * p.jitter);
     let desired = min(topSpeed, dist * u.arriveK);
     var far = 0.0;
-    if (dist > u.settleRadius) {
+    if (flying && dist > u.settleRadius) {
       far = select(1.0, min(1.0, (dist - u.settleRadius) / u.settleRadius), u.settleRadius > 0.0);
     }
     var v = p.vel + (dir * desired - p.vel) * u.attract;
@@ -166,6 +173,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     repel(&p);
     p.vel *= u.damping;
     p.pos += p.vel;
+    if (flying && length(T.xy + d - p.pos) < max(u.settleRadius, 4.0)) { p.landed = 1.0; }
     p.size += (T.z - p.size) * 0.1;
     p.opacity += (T.w - p.opacity) * 0.1;
   } else {
@@ -179,6 +187,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     p.opacity += (T.w - p.opacity) * k;
     if (p.landed < 0.5 && all(abs(T.xy + d - p.pos) < vec2f(2.0))) {
       p.landed = 1.0;
+      p.heading = select(u.aIndex, u.bIndex, u.eased >= 0.5);
       p.vel = vec2f(0.0);
     }
   }
@@ -523,6 +532,7 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
     SU.set("t", u.t); SU.set("eased", u.eased); SU.set("drift", u.drift); SU.set("steer", u.steer ? 1 : 0);
     SU.set("mouseX", u.mouse?.x ?? 0); SU.set("mouseY", u.mouse?.y ?? 0); SU.set("mouseSign", u.mouse ? u.mouseSign : 0);
     SU.set("mouseRadius", u.mouseRadius); SU.set("mouseStrength", u.mouseStrength);
+    SU.set("aShiftX", u.shiftA.x); SU.set("aShiftY", u.shiftA.y); SU.set("bShiftX", u.shiftB.x); SU.set("bShiftY", u.shiftB.y);
     SU.set("texOffX", u.texOffX % texN); SU.set("texOffY", u.texOffY % texN); SU.set("texN", texN); SU.set("texelPx", f.texelPx);
     for (const k of ["attract", "arriveK", "settleRadius", "damping", "homing", "accel", "maxSpeed", "speedVar", "stagger",
       "sensorDist", "sensorAngle", "turnGain", "maxTurn", "alignMin"] as const) SU.set(k, sp[k]);

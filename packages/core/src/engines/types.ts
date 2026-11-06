@@ -12,6 +12,8 @@ export type StepInputs = {
   time: number; // drift clock (s), advances 0.016 per step
   A: SceneXform; B: SceneXform; // the two scenes in play
   t: number; eased: number; drift: number;
+  /** How far scenes A and B moved on screen since the last step (scroll, layout). Resting particles ride along. */
+  shiftA: { x: number; y: number }; shiftB: { x: number; y: number };
   steer: boolean;
   mouse: { x: number; y: number } | null;
   mouseSign: number; // +1 repel, -1 attract, 0 off

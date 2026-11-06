@@ -60,13 +60,19 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
       if (u.steer && landed) {
         // ---- steer: physarum-style flight + damped landing
         const switchAt = 0.1 + s[o + P.stagger] * sp.stagger;
-        targetOf(i, u.t >= switchAt ? u.B : u.A, dots, u.vw, u.vh, ta);
+        const toB = u.t >= switchAt;
+        targetOf(i, toB ? u.B : u.A, dots, u.vw, u.vh, ta);
+        // A new target scene starts a flight; resting particles ride along with their scene.
+        const hi = toB ? u.B.index : u.A.index;
+        if (hi !== s[o + P.heading]) { s[o + P.heading] = hi; s[o + P.landed] = 2; }
+        const flying = s[o + P.landed] > 1.5;
+        if (!flying) { const sh = toB ? u.shiftB : u.shiftA; cx += sh.x; cy += sh.y; }
         const gx = ta[0] + dx - cx, gy = ta[1] + dy - cy;
         const d = Math.sqrt(gx * gx + gy * gy) || 1e-6;
         const ux = gx / d, uy = gy / d;
         const topSpeed = sp.maxSpeed * (1 + sp.speedVar * s[o + P.jitter]);
         const desired = Math.min(topSpeed, d * sp.arriveK);
-        const far = d <= sp.settleRadius ? 0 : sp.settleRadius > 0 ? Math.min(1, (d - sp.settleRadius) / sp.settleRadius) : 1;
+        const far = !flying || d <= sp.settleRadius ? 0 : sp.settleRadius > 0 ? Math.min(1, (d - sp.settleRadius) / sp.settleRadius) : 1;
         let nvx = vx + (ux * desired - vx) * sp.attract;
         let nvy = vy + (uy * desired - vy) * sp.attract;
         if (far > 0) {
@@ -92,6 +98,7 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
         repel();
         vx *= sp.damping; vy *= sp.damping;
         cx += vx; cy += vy;
+        if (flying && Math.hypot(ta[0] + dx - cx, ta[1] + dy - cy) < Math.max(sp.settleRadius, 4)) s[o + P.landed] = 1;
         s[o + P.size] += (ta[2] - s[o + P.size]) * 0.1;
         s[o + P.opacity] += (ta[3] - s[o + P.opacity]) * 0.1;
       } else {
@@ -109,7 +116,7 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
         s[o + P.size] += (tSize - s[o + P.size]) * k;
         s[o + P.opacity] += (tOp - s[o + P.opacity]) * k;
         if (!landed && Math.abs(tx + dx - cx) < 2 && Math.abs(ty + dy - cy) < 2) {
-          s[o + P.landed] = 1; vx = 0; vy = 0;
+          s[o + P.landed] = 1; s[o + P.heading] = u.eased >= 0.5 ? u.B.index : u.A.index; vx = 0; vy = 0;
         }
       }
       s[o + P.cx] = cx; s[o + P.cy] = cy; s[o + P.vx] = vx; s[o + P.vy] = vy;

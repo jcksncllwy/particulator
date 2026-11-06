@@ -10,7 +10,11 @@ export const P = {
   cx: 0, cy: 1, lx: 2, ly: 3, vx: 4, vy: 5,
   size: 6, opacity: 7, speed: 8, jitter: 9,
   driftOffX: 10, driftOffY: 11, driftSpdX: 12, driftSpdY: 13, driftRadius: 14,
-  stagger: 15, landed: 16,
+  stagger: 15,
+  /** 0 entrance, 1 resting on `heading`, 2 flying to `heading`. */
+  landed: 16,
+  /** Scene index the particle is bound to. */
+  heading: 17,
 } as const;
 
 export type ParticleState = Float32Array<ArrayBuffer>;
@@ -113,7 +117,7 @@ export function restingState(count: number, S: SceneXform, dots: Float32Array, v
     s[o + P.cx] = s[o + P.lx] = t[0];
     s[o + P.cy] = s[o + P.ly] = t[1];
     s[o + P.size] = t[2]; s[o + P.opacity] = t[3];
-    s[o + P.landed] = 1;
+    s[o + P.landed] = 1; s[o + P.heading] = S.index;
   }
   return s;
 }

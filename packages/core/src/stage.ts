@@ -98,6 +98,8 @@ export function createStage(opts: StageOptions): Stage {
   let allDots: Float32Array<ArrayBuffer> = new Float32Array(0);
   let driver: Driver = createDriver(effect.timeline.driver);
   let xforms: SceneXform[] = [];
+  // Scene centers as of the last sim step, so resting particles can ride along when a scene moves.
+  let stepCenters: ({ x: number; y: number } | undefined)[] = [];
   let destroyed = false;
   let raf = 0;
   let showField = false;
@@ -208,6 +210,11 @@ export function createStage(opts: StageOptions): Stage {
     const drift = A.drift + (B.drift - A.drift) * tr.t;
     const m = effect.interaction.mouse;
 
+    const shiftOf = (S: SceneXform) => {
+      const c = stepCenters[S.index];
+      return c ? { x: S.cx - c.x, y: S.cy - c.y } : { x: 0, y: 0 };
+    };
+    const zero = { x: 0, y: 0 };
     let steps = 0;
     const t0 = performance.now();
     let noise = 0;
@@ -217,6 +224,7 @@ export function createStage(opts: StageOptions): Stage {
       if (effect.field.live) texZ += effect.field.liveSpeed;
       engine.step({
         vw, vh, count: effect.particles.count, time, A, B, t: tr.t, eased, drift,
+        shiftA: steps === 0 ? shiftOf(A) : zero, shiftB: steps === 0 ? shiftOf(B) : zero,
         steer: effect.motion.preset === "steer",
         mouse, mouseSign: m.mode === "repel" ? 1 : m.mode === "attract" ? -1 : 0,
         mouseRadius: m.radius, mouseStrength: m.strength,
@@ -225,6 +233,7 @@ export function createStage(opts: StageOptions): Stage {
       });
       noise += engine.timings().noiseMs;
       acc -= STEP_MS;
+      if (steps === 0) stepCenters = xforms.map((S) => ({ x: S.cx, y: S.cy }));
       steps++;
     }
     if (steps === MAX_STEPS) acc = 0; // fell behind: drop time rather than spiral
