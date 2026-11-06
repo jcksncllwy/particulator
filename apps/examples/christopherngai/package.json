@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "studio": "particulator studio --effect effect.json --assets public/particulator --public public"
   },
   "dependencies": {
     "framer-motion": "^12.23.0",
@@ -16,6 +17,8 @@
     "particulator": "workspace:*"
   },
   "devDependencies": {
+    "@particulator/cli": "workspace:*",
+    "@particulator/studio": "workspace:*",
     "@tailwindcss/postcss": "^4.1.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.2.0",

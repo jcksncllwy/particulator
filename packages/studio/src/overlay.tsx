@@ -43,17 +43,26 @@ export function placeAt(scene: SceneConfig, info: SceneInfo, pose: Pose): SceneC
 
 export function Overlay({ store, hover }: { store: Store; hover: DOMRect | null }) {
   const [infos, setInfos] = useState<SceneInfo[]>([]);
+  const [live, setLive] = useState<[number, number]>([0, 0]);
   useEffect(() => {
     let raf = 0;
-    const tick = () => { setInfos(store.stage.scenes()); raf = requestAnimationFrame(tick); };
+    const tick = () => {
+      setInfos(store.stage.scenes());
+      const tr = store.stage.transition();
+      setLive([tr.from, tr.to]);
+      raf = requestAnimationFrame(tick);
+    };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [store]);
 
   const sel = store.state.selected;
+  // Element scenes sit with their content down the page, so all of them get a box. Viewport scenes
+  // share the screen, so only the live ones (and the selected one) do, or they'd pile up.
+  const shown = (s: SceneInfo) => s.index !== sel && (store.effect.scenes[s.index]?.placement.mode === "element" || live.includes(s.index));
   return (
     <div class="overlay">
-      {infos.map((s) => (s.index === sel ? null : <Box info={s} onSelect={() => store.select(s.index)} />))}
+      {infos.map((s) => (shown(s) ? <Box info={s} onSelect={() => store.select(s.index)} /> : null))}
       {infos[sel] && <Handles store={store} info={infos[sel]} />}
       {hover && <div class="pick" style={{ left: hover.left, top: hover.top, width: hover.width, height: hover.height }} />}
     </div>

@@ -5,6 +5,12 @@ import type { EffectInput, Stage } from "particulator";
 import { ParticleStage } from "particulator/react";
 import effect from "../../effect.json";
 import { TuningPanel } from "./TuningPanel";
+import { Studio } from "./Studio";
+
+// In dev the studio replaces the tuning panel; add ?studio=0 to get the panel back.
+const DEV_STUDIO =
+  process.env.NODE_ENV === "development" &&
+  (typeof window === "undefined" || new URLSearchParams(window.location.search).get("studio") !== "0");
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
@@ -26,7 +32,7 @@ export function ParticleCanvas({ progress, isMobile }: Props) {
         progress={progress}
         onStage={setStage}
       />
-      <TuningPanel stage={stage} />
+      {DEV_STUDIO ? stage && <Studio stage={stage} /> : <TuningPanel stage={stage} />}
     </>
   );
 }

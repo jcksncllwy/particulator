@@ -54,6 +54,13 @@ export function createStore(stage: Stage, storage: StorageAdapter) {
     get canUndo() { return undo.length > 0; },
     get canRedo() { return redo.length > 0; },
     select: (i: number) => set({ selected: i }),
+    /** Select scene i and show it: goTo for the api driver, scroll to its section for the scroll driver. */
+    goTo: (i: number) => {
+      set({ selected: i });
+      const d = stage.effect.timeline.driver;
+      if (d.type === "scroll") document.querySelectorAll(d.sections)[i]?.scrollIntoView({ behavior: "smooth" });
+      else if (d.type === "api") stage.goTo(i);
+    },
     setPicking: (v: boolean) => set({ picking: v }),
     flash: (status: string, error = false) => { set({ status, error }); setTimeout(() => { if (state.status === status) set({ status: "" }); }, 4000); },
     apply,

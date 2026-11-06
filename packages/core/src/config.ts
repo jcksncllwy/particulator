@@ -242,8 +242,9 @@ export function sparseEffect(effect: Effect): EffectInput {
     }
     return v;
   };
-  const { scenes, ...rest } = effect;
-  return { scenes, ...((diff(rest, DEFAULTS) as object) ?? {}) } as EffectInput; // scenes first: the part people read
+  const { version, scenes, ...rest } = effect;
+  // The format version always stays; scenes next, since they're the part people read.
+  return { version, scenes, ...((diff(rest, DEFAULTS) as object) ?? {}) } as EffectInput;
 }
 
 export function resolveEffect(input: EffectInput): Effect {

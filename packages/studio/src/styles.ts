@@ -30,6 +30,9 @@ b { font-weight: 700; }
 .left { top: 50px; left: 8px; width: 200px; max-height: calc(100vh - 116px); border-radius: 8px; padding: 8px; overflow: auto; }
 .left.drop { outline: 2px dashed var(--accent); }
 .head { font-weight: 700; margin-bottom: 6px; }
+button.head.fold { display: block; width: 100%; text-align: left; background: none; border: none; padding: 0; margin: 0; }
+.left:has(> button.head.fold:only-child) .head { margin: 0; }
+.tabs button.fold { margin-left: auto; }
 .scenes { list-style: none; margin: 0; padding: 0; }
 .scenes li { display: flex; gap: 6px; padding: 3px 5px; border-radius: 4px; cursor: pointer; }
 .scenes li:hover { background: var(--bg2); }

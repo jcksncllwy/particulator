@@ -65,6 +65,7 @@ export function ScenesPanel({ store }: { store: Store }) {
   const infos = store.stage.scenes();
   const sel = store.state.selected;
   const [over, setOver] = useState(false);
+  const [folded, setFolded] = useFolded("scenes");
 
   const addFiles = async (files: FileList | null) => {
     if (!files?.length) return;
@@ -108,10 +109,11 @@ export function ScenesPanel({ store }: { store: Store }) {
       onDragOver={(e) => { e.preventDefault(); setOver(true); }}
       onDragLeave={() => setOver(false)}
       onDrop={(e) => { e.preventDefault(); setOver(false); void addFiles(e.dataTransfer?.files ?? null); }}>
-      <div class="head">Scenes</div>
+      <button class="head fold" onClick={() => setFolded(!folded)} title={folded ? "Expand" : "Collapse"}>{folded ? "▸" : "▾"} Scenes</button>
+      {!folded && <>
       <ol class="scenes">
         {scenes.map((s, i) => (
-          <li class={i === sel ? "sel" : ""} onClick={() => store.select(i)}>
+          <li class={i === sel ? "sel" : ""} onClick={() => store.goTo(i)}>
             <span class="idx">{i + 1}</span>
             <span class="name">{s.id}</span>
             <span class="dim">{infos[i]?.dots ? `${(infos[i].dots / 1000).toFixed(0)}k` : "…"}</span>
@@ -129,27 +131,41 @@ export function ScenesPanel({ store }: { store: Store }) {
         </label>
       </div>
       <p class="hint">Drop images here to add scenes.</p>
+      </>}
     </div>
   );
 }
 
 // ---- Inspector -------------------------------------------------------------------------
 
+/** A panel's folded state, remembered per browser. */
+function useFolded(name: string): [boolean, (v: boolean) => void] {
+  const key = `particulator-studio:fold:${name}`;
+  const [v, setV] = useState(() => { try { return localStorage.getItem(key) === "1"; } catch { return false; } });
+  return [v, (nv) => { setV(nv); try { localStorage.setItem(key, nv ? "1" : "0"); } catch { /* storage unavailable */ } }];
+}
+
 const TABS = ["Scene", "Motion", "Field", "Look", "Timeline"] as const;
 type Tab = (typeof TABS)[number];
 
 export function Inspector({ store, setHover }: { store: Store; setHover: (r: DOMRect | null) => void }) {
   const [tab, setTab] = useState<Tab>("Scene");
+  const [folded, setFolded] = useFolded("inspector");
+  // Clicking the open tab (or the arrow) folds the inspector down to its tabs, to get at scenes underneath.
+  const pick = (t: Tab) => { if (t === tab) setFolded(!folded); else { setTab(t); setFolded(false); } };
   return (
     <div class="right panel">
-      <div class="tabs">{TABS.map((t) => <button class={t === tab ? "on" : ""} onClick={() => setTab(t)}>{t}</button>)}</div>
-      <div class="body">
+      <div class="tabs">
+        {TABS.map((t) => <button class={t === tab && !folded ? "on" : ""} onClick={() => pick(t)}>{t}</button>)}
+        <button class="fold" onClick={() => setFolded(!folded)} title={folded ? "Expand" : "Collapse"}>{folded ? "▸" : "▾"}</button>
+      </div>
+      {!folded && <div class="body">
         {tab === "Scene" && <SceneTab store={store} setHover={setHover} />}
         {tab === "Motion" && MOTION.map((g) => <Group title={g.title} open={g.open}>{g.specs.map((s) => <Control store={store} spec={s} />)}</Group>)}
         {tab === "Field" && FIELD.map((g) => <Group title={g.title} open={g.open}>{g.specs.map((s) => <Control store={store} spec={s} />)}</Group>)}
         {tab === "Look" && <LookTab store={store} />}
         {tab === "Timeline" && <TimelineTab store={store} />}
-      </div>
+      </div>}
     </div>
   );
 }
@@ -350,11 +366,6 @@ export function TimelineStrip({ store }: { store: Store }) {
     return () => cancelAnimationFrame(raf);
   }, [store]);
   const d = store.effect.timeline.driver;
-  const go = (i: number) => {
-    store.select(i);
-    if (d.type === "api") store.stage.goTo(i);
-    else if (d.type === "scroll") document.querySelectorAll(d.sections)[i]?.scrollIntoView({ behavior: "smooth" });
-  };
   return (
     <div class="bottom panel">
       {store.effect.scenes.map((s, i) => {
@@ -363,7 +374,7 @@ export function TimelineStrip({ store }: { store: Store }) {
         return (
           <>
             {i > 0 && <span class="link" />}
-            <button class={`block${i === store.state.selected ? " sel" : ""}${active ? " live" : ""}`} onClick={() => go(i)} title={d.type === "time" ? "" : "Go to this scene"}>
+            <button class={`block${i === store.state.selected ? " sel" : ""}${active ? " live" : ""}`} onClick={() => store.goTo(i)} title="Go to this scene">
               <span class="fill" style={{ width: `${fill * 100}%` }} />
               <span class="label">{i + 1} {s.id}</span>
             </button>

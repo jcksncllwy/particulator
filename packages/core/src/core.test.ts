@@ -20,6 +20,7 @@ describe("config", () => {
   });
   test("sparseEffect keeps only what differs from the defaults, and round-trips", () => {
     const input = {
+      version: 1 as const,
       scenes: [{ id: "a", source: { type: "image" as const, src: "a.png" }, placement: { mode: "viewport" as const, x: 0.5, y: 0.5, height: 0.5 } }],
       motion: { steer: { homing: 0.2 }, walls: { enabled: true } },
       timeline: { driver: { type: "scroll" as const, sections: "section" } },
@@ -27,7 +28,7 @@ describe("config", () => {
     const sparse = sparseEffect(resolveEffect(input));
     expect(sparse).toEqual(input);
     expect(resolveEffect(sparse)).toEqual(resolveEffect(input));
-    expect(sparseEffect(resolveEffect({ scenes: [] }))).toEqual({ scenes: [] });
+    expect(sparseEffect(resolveEffect({ scenes: [] }))).toEqual({ version: 1, scenes: [] });
   });
   test("parseColor", () => {
     expect(parseColor("#f5f1e8")).toEqual({ r: 245, g: 241, b: 232 });

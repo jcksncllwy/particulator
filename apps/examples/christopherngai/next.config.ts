@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
   trailingSlash: true,
   images: { unoptimized: true },
   // The particulator packages are workspace TypeScript sources.
-  transpilePackages: ["particulator", "@particulator/dotter"],
+  transpilePackages: ["particulator", "@particulator/dotter", "@particulator/studio"],
   turbopack: { root: path.resolve(process.cwd(), "../../..") },
 };
 

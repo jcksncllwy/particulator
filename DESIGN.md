@@ -333,6 +333,10 @@ deployed with no manual steps.
 - `studio` (page, scenes, inspector, timeline, element picking, perf HUD) +
   the `cli` save server + the File System Access fallback.
 - Grows out of the existing tuning panel.
+- *Status:* studio and save server built. The Vite plugin serves saves at
+  `/__particulator` (basic example), and the christopherngai example runs the
+  standalone server next to `next dev`. Left to do: the acceptance run on
+  Chris's scenes, and the deploy leg.
 
 **Phase 3: web app + export.** Done when a designer can go from three PNGs to
 a pasted embed on a Webflow page without help.
@@ -349,8 +353,9 @@ a pasted embed on a Webflow page without help.
 
 - **Hosting the runtime:** jsDelivr from npm (free, standard) vs serving
   `embed.js` from jacksoncallaway.com.
-- **Dev studio integration:** ship Vite/Next plugins in phase 2, or start
-  with the CLI alone?
+- **Dev studio integration:** *Partly settled.* The Vite plugin shipped in
+  phase 2. Next uses the CLI for now, since a Next plugin can't add routes
+  to `next dev` without a custom server.
 - **Default particle budget per tier:** decide after benchmarking on a
   mid-range Android and an older iPhone.
 - **Example images:** the christopherngai.com example reuses images already

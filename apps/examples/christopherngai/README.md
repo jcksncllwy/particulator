@@ -186,6 +186,18 @@ normalized with the static texture's range instead of a per-frame min/max.
 ```bash
 npm install
 npm run dev                      # http://localhost:3000
+```
+
+In this repo, `next dev` mounts the particulator studio over the page in place of
+the tuning panel (`?studio=0` brings the panel back). Run its save server
+alongside so saves write `effect.json` and dropped images land in
+`public/particulator`:
+
+```bash
+bun run studio                   # save server on 127.0.0.1:4747
+```
+
+```bash
 npm run build                    # static export -> out/
 # preview build as hosted at jacksoncallaway.com/for-chris:
 NEXT_PUBLIC_BASE_PATH=/for-chris NEXT_PUBLIC_NOINDEX=1 \
