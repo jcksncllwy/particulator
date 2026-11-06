@@ -39,10 +39,13 @@ Everything an effect is, as one serializable object (`effect.json`). Only
 |---|---|
 | `scenes[]` | `id`, `source` (`image` stippled at load, or precomputed `dots`), `placement`, `drift`, `overflow` |
 | `placement` | `viewport` (x/y as viewport fractions, `height` as a fraction of viewport height, `breakpoints`) or `element` (`selector`, `fit` contain/cover, `scale`, x/y within the box) |
-| `timeline.driver` | `api` (set from code), `scroll` (sections by selector), `time` (`hold`, `transition`, `loop` / `pingpong` / `once`) |
-| `motion` | `preset`: `ease` or `steer`; `entrance`: `drop` or `none`; `steer` params |
+| `timeline.driver` | `api` (set from code), `scroll` (sections by selector; `mode: "scrub"` tracks scroll exactly, `"snap"` commits to a scene past `threshold` and flies over `duration` s, without touching the page's scroll), `time` (`hold`, `transition`, `loop` / `pingpong` / `once`) |
+| `motion` | `preset`: `ease` or `steer`; `entrance`: `drop` or `none`; `steer` params (below) |
+| `motion.steer` | flight (`homing`, `maxSpeed`, sensors on the noise field), landing (`attract`, `arriveK`, `settleRadius`), `stagger` (departures sweep bottom-up going forward, top-down going back), resting (`restFollow`: how rigidly resting dots follow a scrolled scene, `restNoise`: noise in their spring motion) |
+| `motion.walls` | keep flying particles on screen: soft `margin` spring, smooth edge push (`range`, `strength`). Rest spots at or past the screen edge are unreachable: those particles fly to the nearest point inside and swarm there (`cruise`) until the spot scrolls back into view |
+| `motion.crowd` | density-field pressure between displaced particles (more than `distance` px from their rest spot), so swarms and edge piles spread out. Resting particles are never pushed |
 | `field` | the steering noise field (texture params, `drift`, `live` 3D noise) |
-| `look` | `ink` (colour, or `{ light, dark }` with `theme`: `class:dark` / `media`), `size`, streaks |
+| `look` | `ink` (colour, or `{ light, dark }` with `theme`: `class:dark` / `media`), `size`, streaks (`streak`, `streakTaper`, `streakFade`; `restStreak` scales them for resting particles, 0 by default) |
 | `interaction.mouse` | `repel` / `attract` / `off`, radius, strength |
 | `particles.count` | particle pool size (30k default) |
 
