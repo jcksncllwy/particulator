@@ -85,6 +85,34 @@ export type MotionConfig = {
   /** First load: particles drop into the first scene with "ease" before the preset takes over. */
   entrance: "drop" | "none";
   steer: SteerParams;
+  /** Keep particles on screen: they bounce off the viewport edges instead of leaving it. */
+  walls: WallsConfig;
+  /** Crowd pressure between displaced particles (steer preset). See CrowdConfig. */
+  crowd: CrowdConfig;
+};
+
+export type WallsConfig = {
+  enabled: boolean;
+  /** Inset from the viewport edge, px (negative lets particles go that far past it). */
+  margin: number;
+  /** Fraction of speed kept when bouncing off a wall (0 = stick, 1 = perfect bounce). */
+  bounce: number;
+};
+
+/**
+ * Particles that are more than `distance` px from where they belong (in flight,
+ * pressed against a wall, knocked loose) splat into a coarse density grid and
+ * get pushed down its gradient, so crowds spread instead of collapsing into a
+ * line. Particles resting in their image neither push nor get pushed, so dense
+ * areas of an image stay dense.
+ */
+export type CrowdConfig = {
+  enabled: boolean;
+  strength: number;
+  /** Displacement (px from target) where the force starts; full strength at 2x. */
+  distance: number;
+  /** Density grid cell size, px. */
+  cellPx: number;
 };
 
 export type FieldConfig = {
@@ -150,6 +178,8 @@ export const DEFAULTS: Omit<Effect, "scenes"> = {
       sensorDist: 28, sensorAngle: 0.19, turnGain: 0.8, maxTurn: 0.3, alignMin: 0,
       restFollow: 0.75, restNoise: 0.25,
     },
+    walls: { enabled: false, margin: 0, bounce: 0.3 },
+    crowd: { enabled: false, strength: 4, distance: 30, cellPx: 6 },
   },
   field: {
     size: 256, texelPx: 4, features: 5, octaves: 3, lacunarity: 2, gain: 0.5,

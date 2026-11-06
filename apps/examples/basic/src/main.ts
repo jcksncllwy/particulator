@@ -9,6 +9,7 @@ const scene = (id: string) => ({
 const effect: EffectInput = {
   scenes: [scene("sphere"), scene("glyph"), scene("star")],
   timeline: { driver: { type: "scroll", sections: "section", mode: "snap" } },
+  motion: { walls: { enabled: true }, crowd: { enabled: true } },
   look: { ink: { light: "#1a1a1a", dark: "#f5f1e8" }, theme: "class:dark" },
   stage: { zIndex: 1 },
 };
@@ -27,21 +28,33 @@ const render = () => {
 };
 stage.ready.then(() => { render(); setInterval(render, 500); });
 
-// Live sliders for the resting behaviour (scroll a little within a section to see it).
+// Live sliders (scroll a little within a section, or scroll a scene half off screen, to see them).
 const tune = document.getElementById("tune")!;
-const SLIDERS = [
-  ["steer", "restFollow", 0, 1, 0.05], ["steer", "restNoise", 0, 1, 0.01], ["steer", "attract", 0.02, 0.5, 0.01], ["steer", "arriveK", 0.01, 0.3, 0.005],
-  ["look", "streak", 0, 4, 0.05], ["look", "streakFade", 0, 1, 0.05], ["look", "restStreak", 0, 1, 0.05],
-] as const;
+type Spec = [path: string, min: number, max: number, step: number];
+const SLIDERS: Spec[] = [
+  ["motion.steer.restFollow", 0, 1, 0.05], ["motion.steer.restNoise", 0, 1, 0.01],
+  ["motion.steer.attract", 0.02, 0.5, 0.01], ["motion.steer.arriveK", 0.01, 0.3, 0.005],
+  ["look.streak", 0, 4, 0.05], ["look.streakFade", 0, 1, 0.05], ["look.restStreak", 0, 1, 0.05],
+  ["motion.walls.margin", -100, 100, 1], ["motion.walls.bounce", 0, 1, 0.05],
+  ["motion.crowd.strength", 0, 5, 0.05], ["motion.crowd.distance", 0, 150, 1], ["motion.crowd.cellPx", 2, 24, 1],
+];
+const TOGGLES = ["motion.walls.enabled", "motion.crowd.enabled"];
+const get = (path: string) => path.split(".").reduce<any>((o, k) => o?.[k], stage.effect);
+const patch = (path: string, v: unknown) => path.split(".").reduceRight<any>((acc, k) => ({ [k]: acc }), v);
 stage.ready.then(() => {
-  for (const [group, key, min, max, step] of SLIDERS) {
-    const v = group === "steer" ? stage.effect.motion.steer[key as keyof typeof stage.effect.motion.steer] : stage.effect.look[key as "streak"];
-    tune.insertAdjacentHTML("beforeend", `<label for="t-${key}">${key}</label><input id="t-${key}" type="range" min="${min}" max="${max}" step="${step}" value="${v}"><output id="o-${key}">${v}</output>`);
-    const input = document.getElementById(`t-${key}`) as HTMLInputElement;
+  for (const path of TOGGLES) {
+    const id = path.replace(/\./g, "-");
+    tune.insertAdjacentHTML("beforeend", `<label for="${id}">${path.split(".").slice(1).join(".")}</label><input id="${id}" type="checkbox" ${get(path) ? "checked" : ""}><span></span>`);
+    const input = document.getElementById(id) as HTMLInputElement;
+    input.addEventListener("change", () => void stage.update(patch(path, input.checked)));
+  }
+  for (const [path, min, max, step] of SLIDERS) {
+    const id = path.replace(/\./g, "-"), v = get(path);
+    tune.insertAdjacentHTML("beforeend", `<label for="${id}">${path.split(".").slice(-2).join(".")}</label><input id="${id}" type="range" min="${min}" max="${max}" step="${step}" value="${v}"><output id="o-${id}">${v}</output>`);
+    const input = document.getElementById(id) as HTMLInputElement;
     input.addEventListener("input", () => {
-      document.getElementById(`o-${key}`)!.textContent = input.value;
-      const val = Number(input.value);
-      void stage.update(group === "steer" ? { motion: { steer: { [key]: val } } } : { look: { [key]: val } });
+      document.getElementById(`o-${id}`)!.textContent = input.value;
+      void stage.update(patch(path, Number(input.value)));
     });
   }
 });

@@ -230,6 +230,7 @@ export function createStage(opts: StageOptions): Stage {
         mouseRadius: m.radius, mouseStrength: m.strength,
         texOffX, texOffY, texZ, liveNoise: effect.field.live,
         steerParams: effect.motion.steer, field: effect.field,
+        walls: effect.motion.walls, crowd: effect.motion.crowd,
       });
       noise += engine.timings().noiseMs;
       acc -= STEP_MS;

@@ -1,7 +1,7 @@
 // What the Stage hands an engine. The Stage owns the clock, timeline,
 // placement, input and theme; an engine only steps particles and draws them.
 
-import type { FieldConfig, SteerParams } from "../config";
+import type { CrowdConfig, FieldConfig, SteerParams, WallsConfig } from "../config";
 import type { LocalCloud, ParticleState, SceneXform } from "../particles";
 
 export type EngineKind = "webgpu" | "canvas2d";
@@ -22,6 +22,8 @@ export type StepInputs = {
   texZ: number; // live-noise slice
   liveNoise: boolean;
   steerParams: SteerParams;
+  walls: WallsConfig;
+  crowd: CrowdConfig;
   field: FieldConfig;
 };
 

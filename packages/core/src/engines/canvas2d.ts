@@ -4,7 +4,7 @@
 
 import type { FieldConfig } from "../config";
 import { buildField, sampleField } from "../field";
-import { P, STRIDE, targetOf, type LocalCloud, type ParticleState } from "../particles";
+import { hash01, P, STRIDE, targetOf, type LocalCloud, type ParticleState } from "../particles";
 import type { Engine, RenderInputs, StepInputs } from "./types";
 
 const ALPHA_BUCKETS = 16;
@@ -21,6 +21,8 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
   let fieldPattern: CanvasPattern | null = null;
   let noiseMs = 0;
   const ta = new Float32Array(4), tb = new Float32Array(4);
+  // Crowd density grids (ping-pong): read last step's, splat into this step's.
+  let densIn = new Float32Array(1), densOut = new Float32Array(1), gridW = 1, gridH = 1;
 
   const setField = (f: FieldConfig) => {
     fieldCfg = f;
@@ -43,6 +45,28 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
     const mouse = u.mouse, mr = u.mouseRadius, ms = u.mouseStrength * u.mouseSign;
     const ca = Math.cos(sp.sensorAngle), sa = Math.sin(sp.sensorAngle), sd = sp.sensorDist;
 
+    const wl = u.walls, cw = u.crowd, cell = cw.cellPx;
+    if (cw.enabled) {
+      const gw = Math.ceil(u.vw / cell) + 1, gh = Math.ceil(u.vh / cell) + 1;
+      if (gw !== gridW || gh !== gridH) { gridW = gw; gridH = gh; densIn = new Float32Array(gw * gh); densOut = new Float32Array(gw * gh); }
+      else { const t = densIn; densIn = densOut; densOut = t; densOut.fill(0); }
+    }
+    const dens = (x: number, y: number) => densIn[Math.min(gridH - 1, Math.max(0, y)) * gridW + Math.min(gridW - 1, Math.max(0, x))];
+    const densAt = (px: number, py: number) => {
+      const gx = px / cell, gy = py / cell, ix = Math.floor(gx), iy = Math.floor(gy), fx = gx - ix, fy = gy - iy;
+      const a = dens(ix, iy) + (dens(ix + 1, iy) - dens(ix, iy)) * fx;
+      const b = dens(ix, iy + 1) + (dens(ix + 1, iy + 1) - dens(ix, iy + 1)) * fx;
+      return a + (b - a) * fy;
+    };
+    const splat = (px: number, py: number, w: number) => {
+      const gx = px / cell, gy = py / cell, ix = Math.floor(gx), iy = Math.floor(gy), fx = gx - ix, fy = gy - iy;
+      for (let k = 0; k < 4; k++) {
+        const ox = k & 1, oy = k >> 1, x = ix + ox, y = iy + oy;
+        if (x < 0 || y < 0 || x >= gridW || y >= gridH) continue;
+        densOut[y * gridW + x] += w * (ox ? fx : 1 - fx) * (oy ? fy : 1 - fy);
+      }
+    };
+
     for (let i = 0; i < u.count; i++) {
       const o = i * STRIDE;
       const dx = Math.sin(u.time * s[o + P.driftSpdX] + s[o + P.driftOffX]) * s[o + P.driftRadius] * u.drift;
@@ -50,6 +74,15 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
       let cx = s[o + P.cx], cy = s[o + P.cy], vx = s[o + P.vx], vy = s[o + P.vy];
       s[o + P.lx] = cx; s[o + P.ly] = cy;
       const landed = s[o + P.landed] > 0.5;
+
+      const walls = () => {
+        if (!wl.enabled) return;
+        const lo = wl.margin, hx = u.vw - wl.margin, hy = u.vh - wl.margin;
+        if (cx < lo) { cx = lo; vx = Math.abs(vx) * wl.bounce; }
+        if (cx > hx) { cx = hx; vx = -Math.abs(vx) * wl.bounce; }
+        if (cy < lo) { cy = lo; vy = Math.abs(vy) * wl.bounce; }
+        if (cy > hy) { cy = hy; vy = -Math.abs(vy) * wl.bounce; }
+      };
 
       const repel = () => {
         if (!mouse || ms === 0) return;
@@ -110,10 +143,26 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
             const rx = nvx * c - nvy * sn; nvy = nvx * sn + nvy * c; nvx = rx;
           }
         }
+        // Crowd: displaced particles (with somewhere visible to be) push each other apart.
+        let crowdW = 0;
+        if (cw.enabled && ta[3] > 0) {
+          const t = Math.min(1, Math.max(0, (d - cw.distance) / cw.distance));
+          crowdW = t * t * (3 - 2 * t);
+          if (crowdW > 0) {
+            // Per-particle sampling offset (fixed, within a cell) so the crowd doesn't settle into grid rows.
+            const qx = cx + (hash01(i * 2 + 77) - 0.5) * cell, qy = cy + (hash01(i * 2 + 78) - 0.5) * cell;
+            const gxd = (densAt(qx + cell, qy) - densAt(qx - cell, qy)) * 0.5;
+            const gyd = (densAt(qx, qy + cell) - densAt(qx, qy - cell)) * 0.5;
+            const k = cw.strength * 0.05 * crowdW;
+            nvx -= gxd * k; nvy -= gyd * k;
+          }
+        }
         vx = nvx; vy = nvy;
         repel();
         vx *= sp.damping; vy *= sp.damping;
         cx += vx; cy += vy;
+        walls();
+        if (crowdW > 0) splat(cx, cy, crowdW);
         if (flying && Math.hypot(ta[0] + dx - cx, ta[1] + dy - cy) < Math.max(sp.settleRadius, 4)) s[o + P.landed] = 1;
         s[o + P.size] += (ta[2] - s[o + P.size]) * 0.1;
         s[o + P.opacity] += (ta[3] - s[o + P.opacity]) * 0.1;
@@ -129,6 +178,7 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
         const k = u.t > 0.005 ? 0.12 : s[o + P.speed];
         cx += (tx + dx - cx) * k + vx;
         cy += (ty + dy - cy) * k + vy;
+        if (landed) walls();
         s[o + P.size] += (tSize - s[o + P.size]) * k;
         s[o + P.opacity] += (tOp - s[o + P.opacity]) * k;
         if (!landed && Math.abs(tx + dx - cx) < 2 && Math.abs(ty + dy - cy) < 2) {

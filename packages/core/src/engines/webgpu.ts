@@ -20,7 +20,8 @@ const STEP_FIELDS = [
   "features", "octaves", "lacunarity", "gain", "ridged", "sharpness", "normMin", "normMax",
   ...SCENE_FIELDS.map((f) => `a${f}`), ...SCENE_FIELDS.map((f) => `b${f}`),
   "aShiftX", "aShiftY", "bShiftX", "bShiftY",
-  "restFollow", "restNoise", "pad0", "pad1",
+  "restFollow", "restNoise", "walls", "wallMargin",
+  "wallBounce", "crowd", "crowdDist", "cellPx", "gridW", "gridH", "pad0", "pad1",
 ] as const;
 const RENDER_FIELDS = [
   "vw", "vh", "dpr", "alpha", "inkR", "inkG", "inkB", "size",
@@ -74,7 +75,46 @@ ${WGSL_PARTICLE}
 @group(0) @binding(1) var<storage, read_write> ps: array<Particle>;
 @group(0) @binding(2) var<storage, read> dots: array<vec4f>; // local x, y, size, opacity
 @group(0) @binding(3) var<storage, read> field: array<f32>;
+// Crowd density, ping-ponged: read last step's, splat into this step's (fixed point, 1/256 particle).
+@group(0) @binding(4) var<storage, read> densIn: array<u32>;
+@group(0) @binding(5) var<storage, read_write> densOut: array<atomic<u32>>;
 ${WGSL_FIELD}
+
+fn dens(x: i32, y: i32) -> f32 {
+  let cx = clamp(x, 0, i32(u.gridW) - 1);
+  let cy = clamp(y, 0, i32(u.gridH) - 1);
+  return f32(densIn[u32(cy) * u32(u.gridW) + u32(cx)]) / 256.0;
+}
+fn densAt(q: vec2f) -> f32 {
+  let g = q / u.cellPx;
+  let i = vec2i(floor(g));
+  let f = g - floor(g);
+  return mix(mix(dens(i.x, i.y), dens(i.x + 1, i.y), f.x), mix(dens(i.x, i.y + 1), dens(i.x + 1, i.y + 1), f.x), f.y);
+}
+fn splat(q: vec2f, w: f32) {
+  let g = q / u.cellPx;
+  let i = vec2i(floor(g));
+  let f = g - floor(g);
+  let W = i32(u.gridW);
+  let H = i32(u.gridH);
+  for (var k = 0; k < 4; k++) {
+    let o = vec2i(k & 1, k >> 1);
+    let c = i + o;
+    if (c.x < 0 || c.y < 0 || c.x >= W || c.y >= H) { continue; }
+    let wx = select(1.0 - f.x, f.x, o.x == 1);
+    let wy = select(1.0 - f.y, f.y, o.y == 1);
+    atomicAdd(&densOut[u32(c.y * W + c.x)], u32(w * wx * wy * 256.0));
+  }
+}
+fn walls(p: ptr<function, Particle>) {
+  if (u.walls < 0.5) { return; }
+  let lo = vec2f(u.wallMargin);
+  let hi = vec2f(u.vw, u.vh) - u.wallMargin;
+  if ((*p).pos.x < lo.x) { (*p).pos.x = lo.x; (*p).vel.x = abs((*p).vel.x) * u.wallBounce; }
+  if ((*p).pos.x > hi.x) { (*p).pos.x = hi.x; (*p).vel.x = -abs((*p).vel.x) * u.wallBounce; }
+  if ((*p).pos.y < lo.y) { (*p).pos.y = lo.y; (*p).vel.y = abs((*p).vel.y) * u.wallBounce; }
+  if ((*p).pos.y > hi.y) { (*p).pos.y = hi.y; (*p).vel.y = -abs((*p).vel.y) * u.wallBounce; }
+}
 
 fn hash01(x: u32) -> f32 {
   var n = x;
@@ -186,10 +226,24 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
         v = vec2f(v.x * c - v.y * s, v.x * s + v.y * c);
       }
     }
+    // Crowd: displaced particles (with somewhere visible to be) push each other apart.
+    var crowdW = 0.0;
+    if (u.crowd > 0.0 && T.w > 0.0) {
+      crowdW = smoothstep(u.crowdDist, u.crowdDist * 2.0, dist);
+      if (crowdW > 0.0) {
+        let e = u.cellPx;
+        // Per-particle sampling offset (fixed, within a cell) so the crowd doesn't settle into grid rows.
+        let q = p.pos + (vec2f(hash01(i * 2u + 77u), hash01(i * 2u + 78u)) - 0.5) * e;
+        let grad = vec2f(densAt(q + vec2f(e, 0.0)) - densAt(q - vec2f(e, 0.0)), densAt(q + vec2f(0.0, e)) - densAt(q - vec2f(0.0, e))) * 0.5;
+        v -= grad * (u.crowd * 0.05 * crowdW);
+      }
+    }
     p.vel = v;
     repel(&p);
     p.vel *= u.damping;
     p.pos += p.vel;
+    walls(&p);
+    if (crowdW > 0.0) { splat(p.pos, crowdW); }
     if (flying && length(T.xy + d - p.pos) < max(u.settleRadius, 4.0)) { p.landed = 1.0; }
     p.size += (T.z - p.size) * 0.1;
     p.opacity += (T.w - p.opacity) * 0.1;
@@ -200,6 +254,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     p.vel *= 0.9;
     let k = select(p.speed, 0.12, u.t > 0.005);
     p.pos += (T.xy + d - p.pos) * k + p.vel;
+    if (p.landed > 0.5) { walls(&p); }
     p.size += (T.z - p.size) * k;
     p.opacity += (T.w - p.opacity) * k;
     if (p.landed < 0.5 && all(abs(T.xy + d - p.pos) < vec2f(2.0))) {
@@ -457,6 +512,8 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
     { binding: 1, visibility: C, buffer: { type: "storage" } },
     { binding: 2, visibility: C, buffer: { type: "read-only-storage" } },
     { binding: 3, visibility: C, buffer: { type: "read-only-storage" } },
+    { binding: 4, visibility: C, buffer: { type: "read-only-storage" } },
+    { binding: 5, visibility: C, buffer: { type: "storage" } },
   ]);
   const noiseLayout = layout([
     { binding: 0, visibility: C, buffer: { type: "uniform" } },
@@ -496,11 +553,15 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
     multisample: { count: SAMPLES },
   });
 
-  let simBG: GPUBindGroup, noiseBG: GPUBindGroup, renderBG: GPUBindGroup;
+  // Crowd density grids (ping-pong), sized to the viewport / cellPx.
+  let densBufs = [0, 1].map(() => device.createBuffer({ size: 16, usage: U.STORAGE | U.COPY_DST }));
+  let gridW = 1, gridH = 1, densCur = 0;
+  let simBGs: GPUBindGroup[] = [];
+  let noiseBG: GPUBindGroup, renderBG: GPUBindGroup;
   const bindGroups = () => {
     const bg = (l: GPUBindGroupLayout, bufs: [number, GPUBuffer][]) =>
       device.createBindGroup({ layout: l, entries: bufs.map(([binding, buffer]) => ({ binding, resource: { buffer } })) });
-    simBG = bg(simLayout, [[0, stepBuf], [1, particleBuf], [2, dotBuf], [3, fieldBuf]]);
+    simBGs = [0, 1].map((k) => bg(simLayout, [[0, stepBuf], [1, particleBuf], [2, dotBuf], [3, fieldBuf], [4, densBufs[k]], [5, densBufs[1 - k]]]));
     noiseBG = bg(noiseLayout, [[0, stepBuf], [1, fieldBuf], [2, permBuf]]);
     renderBG = bg(renderLayout, [[0, renderBuf], [1, particleBuf], [3, fieldBuf]]);
   };
@@ -562,12 +623,24 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
       SU.set(`${p}Offset`, S.offset); SU.set(`${p}Dots`, S.dots); SU.set(`${p}Ink`, S.ink); SU.set(`${p}Repeat`, S.repeat ? 1 : 0);
       SU.set(`${p}Index`, S.index);
     }
+    const cw = u.crowd, wl = u.walls;
+    const gw = Math.ceil(u.vw / cw.cellPx) + 1, gh = Math.ceil(u.vh / cw.cellPx) + 1;
+    if (cw.enabled && (gw !== gridW || gh !== gridH)) {
+      gridW = gw; gridH = gh;
+      densBufs.forEach((b) => b.destroy());
+      densBufs = [0, 1].map(() => device.createBuffer({ size: gridW * gridH * 4, usage: U.STORAGE | U.COPY_DST }));
+      bindGroups();
+    }
+    SU.set("walls", wl.enabled ? 1 : 0); SU.set("wallMargin", wl.margin); SU.set("wallBounce", wl.bounce);
+    SU.set("crowd", cw.enabled ? cw.strength : 0); SU.set("crowdDist", cw.distance); SU.set("cellPx", cw.cellPx);
+    SU.set("gridW", gridW); SU.set("gridH", gridH);
     device.queue.writeBuffer(stepBuf, 0, SU.data);
 
     const enc = device.createCommandEncoder();
     const q = stepsThisFrame < MAX_STEPS_TIMED && querySet
       ? { timestampWrites: { querySet, beginningOfPassWriteIndex: stepsThisFrame * 2, endOfPassWriteIndex: stepsThisFrame * 2 + 1 } }
       : {};
+    if (cw.enabled) enc.clearBuffer(densBufs[1 - densCur]);
     const pass = enc.beginComputePass(q);
     if (live) {
       pass.setPipeline(noisePipeline);
@@ -575,9 +648,10 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
       pass.dispatchWorkgroups(Math.ceil(texN / 8), Math.ceil(texN / 8));
     }
     pass.setPipeline(simPipeline);
-    pass.setBindGroup(0, simBG);
+    pass.setBindGroup(0, simBGs[densCur]);
     pass.dispatchWorkgroups(Math.ceil(u.count / 256));
     pass.end();
+    if (cw.enabled) densCur = 1 - densCur;
     device.queue.submit([enc.finish()]);
     stepsThisFrame++;
   };
