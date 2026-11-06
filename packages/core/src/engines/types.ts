@@ -31,6 +31,7 @@ export type RenderInputs = {
   alpha: number; // 0..1 between the last two sim steps
   ink: { r: number; g: number; b: number };
   size: number; streak: number; streakTaper: number; streakFade: number;
+  restStreak: number; // streak multiplier for resting particles (1 = same as flying)
   showField: boolean;
   texOffX: number; texOffY: number; texelPx: number;
 };

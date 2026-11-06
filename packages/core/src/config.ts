@@ -109,6 +109,8 @@ export type LookConfig = {
   streak: number;
   streakTaper: number;
   streakFade: number;
+  /** Streak length for resting particles (steer preset), as a fraction of `streak`. 0 = plain dots, so springing after a scrolled scene doesn't smear the image. */
+  restStreak: number;
 };
 
 export type InteractionConfig = {
@@ -153,7 +155,7 @@ export const DEFAULTS: Omit<Effect, "scenes"> = {
     size: 256, texelPx: 4, features: 5, octaves: 3, lacunarity: 2, gain: 0.5,
     ridged: true, sharpness: 3, seed: 7, drift: 0.15, live: false, liveSpeed: 0.004,
   },
-  look: { ink: "#1a1a1a", theme: "none", size: 1, streak: 1, streakTaper: 0.7, streakFade: 0.3 },
+  look: { ink: "#1a1a1a", theme: "none", size: 1, streak: 1, streakTaper: 0.7, streakFade: 0.3, restStreak: 0 },
   interaction: { mouse: { mode: "repel", radius: 70, strength: 0.15 } },
   stage: { zIndex: 0 },
 };

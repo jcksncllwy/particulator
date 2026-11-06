@@ -243,6 +243,7 @@ export function createStage(opts: StageOptions): Stage {
       vw, vh, dpr: window.devicePixelRatio || 1, count: effect.particles.count,
       alpha: Math.min(1, acc / STEP_MS),
       ink: inkNow(), size: look.size, streak: look.streak, streakTaper: look.streakTaper, streakFade: look.streakFade,
+      restStreak: effect.motion.preset === "steer" ? look.restStreak : 1,
       showField, texOffX, texOffY, texelPx: effect.field.texelPx,
     });
     const t2 = performance.now();

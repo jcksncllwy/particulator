@@ -170,6 +170,7 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
     ctx.clearRect(0, 0, r.vw, r.vh);
     if (r.showField) drawField(r);
     const a = r.alpha, n = r.count;
+    const streakOf = (o: number) => { const l = s[o + P.landed]; return l > 0.5 && l < 1.5 ? r.streak * r.restStreak : r.streak; };
 
     // Counting-sort into opacity buckets: one fillStyle per bucket.
     bucketStart.fill(0);
@@ -178,7 +179,7 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
       let op = s[o + P.opacity];
       if (r.streakFade > 0 && r.streak > 0) {
         const rad = Math.max(0.3, s[o + P.size] * r.size), mx = s[o + P.cx] - s[o + P.lx], my = s[o + P.cy] - s[o + P.ly];
-        const len = Math.sqrt(mx * mx + my * my) * r.streak;
+        const len = Math.sqrt(mx * mx + my * my) * streakOf(o);
         if (len > 2 * rad) op *= 1 - r.streakFade * (1 - (2 * rad) / (2 * rad + len));
       }
       const bk = op < 0.005 ? -1 : Math.min(ALPHA_BUCKETS - 1, (op * ALPHA_BUCKETS) | 0);
@@ -201,7 +202,7 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
         const lx = s[o + P.lx], ly = s[o + P.ly];
         const mxs = s[o + P.cx] - lx, mys = s[o + P.cy] - ly;
         const hx = lx + mxs * a, hy = ly + mys * a; // interpolated head
-        const mx = mxs * r.streak, my = mys * r.streak;
+        const sk = streakOf(o), mx = mxs * sk, my = mys * sk;
         const len2 = mx * mx + my * my;
         if (len2 > 4 * rad * rad) {
           // Tapered quad from the head back along one step of motion. Winding

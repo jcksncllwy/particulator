@@ -24,7 +24,7 @@ const STEP_FIELDS = [
 ] as const;
 const RENDER_FIELDS = [
   "vw", "vh", "dpr", "alpha", "inkR", "inkG", "inkB", "size",
-  "streak", "streakTaper", "streakFade", "texOffX", "texOffY", "texN", "texelPx", "pad0",
+  "streak", "streakTaper", "streakFade", "texOffX", "texOffY", "texN", "texelPx", "restStreak",
 ] as const;
 
 function uniformBlock<const K extends readonly string[]>(fields: K) {
@@ -340,7 +340,8 @@ fn vs(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> VOut 
   let rad = max(0.3, p.size * r.size);
   let motion = p.pos - p.prev;
   let headPos = p.prev + motion * r.alpha; // interpolated between sim steps
-  let m = motion * r.streak;
+  let resting = p.landed > 0.5 && p.landed < 1.5;
+  let m = motion * r.streak * select(1.0, r.restStreak, resting);
   let len = length(m);
   if (r.streakFade > 0.0 && r.streak > 0.0 && len > 2.0 * rad) {
     o *= 1.0 - r.streakFade * (1.0 - (2.0 * rad) / (2.0 * rad + len));
@@ -585,7 +586,7 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
     if (lost) return;
     RU.set("vw", r.vw); RU.set("vh", r.vh); RU.set("dpr", r.dpr); RU.set("alpha", r.alpha);
     RU.set("inkR", r.ink.r / 255); RU.set("inkG", r.ink.g / 255); RU.set("inkB", r.ink.b / 255); RU.set("size", r.size);
-    RU.set("streak", r.streak); RU.set("streakTaper", r.streakTaper); RU.set("streakFade", r.streakFade);
+    RU.set("streak", r.streak); RU.set("streakTaper", r.streakTaper); RU.set("streakFade", r.streakFade); RU.set("restStreak", r.restStreak);
     RU.set("texOffX", r.texOffX % texN); RU.set("texOffY", r.texOffY % texN); RU.set("texN", texN); RU.set("texelPx", r.texelPx);
     device.queue.writeBuffer(renderBuf, 0, RU.data);
 

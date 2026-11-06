@@ -31,7 +31,7 @@ stage.ready.then(() => { render(); setInterval(render, 500); });
 const tune = document.getElementById("tune")!;
 const SLIDERS = [
   ["steer", "restFollow", 0, 1, 0.05], ["steer", "restNoise", 0, 1, 0.01], ["steer", "attract", 0.02, 0.5, 0.01], ["steer", "arriveK", 0.01, 0.3, 0.005],
-  ["look", "streak", 0, 4, 0.05], ["look", "streakFade", 0, 1, 0.05],
+  ["look", "streak", 0, 4, 0.05], ["look", "streakFade", 0, 1, 0.05], ["look", "restStreak", 0, 1, 0.05],
 ] as const;
 stage.ready.then(() => {
   for (const [group, key, min, max, step] of SLIDERS) {
