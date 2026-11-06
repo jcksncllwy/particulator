@@ -64,6 +64,9 @@
     "steer": {
       "attract": 0.205,
       "stagger": 0.55
+    },
+    "crowd": {
+      "flight": true
     }
   },
   "look": {
@@ -76,7 +79,6 @@
   "interaction": {
     "mouse": {
       "press": {
-        "swirl": false,
         "crowd": true
       }
     }

@@ -47,12 +47,12 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
     const ca = Math.cos(sp.sensorAngle), sa = Math.sin(sp.sensorAngle), sd = sp.sensorDist;
 
     const wl = u.walls, cw = u.crowd, cell = cw.cellPx;
-    if (cw.enabled) {
+    if (cw.grid) {
       const gw = Math.ceil(u.vw / cell) + 1, gh = Math.ceil(u.vh / cell) + 1;
       if (gw !== gridW || gh !== gridH) { gridW = gw; gridH = gh; densIn = new Float32Array(gw * gh); densOut = new Float32Array(gw * gh); }
       else { densOut.fill(0); if (!gridWasOn) densIn.fill(0); } // the grid was idle: drop stale density
     }
-    gridWasOn = cw.enabled;
+    gridWasOn = cw.grid;
     const dens = (x: number, y: number) => densIn[Math.min(gridH - 1, Math.max(0, y)) * gridW + Math.min(gridW - 1, Math.max(0, x))];
     const densAt = (px: number, py: number) => {
       const gx = px / cell, gy = py / cell, ix = Math.floor(gx), iy = Math.floor(gy), fx = gx - ix, fy = gy - iy;
@@ -193,8 +193,8 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
         }
         // Crowd: displaced particles (with somewhere visible to be) push each other apart.
         let crowdW = 0;
-        if (cw.enabled && ta[3] > 0) {
-          if (u.crowdBase) { const t = Math.min(1, Math.max(0, (d - cw.distance) / cw.distance)); crowdW = t * t * (3 - 2 * t); }
+        if (cw.grid && ta[3] > 0) {
+          if (u.crowdFlight && flying) crowdW = 1;
           // Pressed with press.crowd: everything under the cursor crowds too, weighted by the cursor's bell.
           if (mouse && u.mouseCrowd > 0) {
             const x = Math.hypot(cx - mouse.x, cy - mouse.y) / mr;
@@ -242,7 +242,7 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
     }
 
     // 5x5 binomial blur of the raw density into the grid particles read next step (separable: rows, then columns).
-    if (cw.enabled) {
+    if (cw.grid) {
       if (!cw.blur) densIn.set(densOut);
       else {
         const W = gridW, H = gridH, src = densOut, out = densIn;

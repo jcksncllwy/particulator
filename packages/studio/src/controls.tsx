@@ -116,7 +116,7 @@ export const MOTION: { title: string; specs: Spec[]; open?: boolean }[] = [
       { kind: "select", path: "particles.count", options: [5000, 15000, 30000, 60000, 100000, 300000, 1000000] },
     ],
   },
-  { title: "Flight", specs: [S("homing", 0, 0.5, 0.005, "max turn toward the target per step (rad)"), S("accel", 0.01, 1, 0.01), S("maxSpeed", 1, 40, 0.5), S("speedVar", 0, 0.9, 0.01), S("stagger", 0, 2, 0.05, "how drawn-out the departure sweep is")] },
+  { title: "Flight", specs: [S("homing", 0, 0.5, 0.005, "max turn toward the target per step (rad)"), S("accel", 0.01, 1, 0.01), S("maxSpeed", 1, 40, 0.5), S("speedVar", 0, 0.9, 0.01), S("stagger", 0, 2, 0.05, "how drawn-out the departure sweep is"), { kind: "toggle", path: "motion.crowd.flight", label: "crowd", help: "particles in flight push each other apart (tune under Crowd)" }] },
   { title: "Sensors", open: false, specs: [S("sensorDist", 2, 120, 1), S("sensorAngle", 0.05, 1.5, 0.01), S("turnGain", 0, 15, 0.1), S("maxTurn", 0, 1, 0.01), S("alignMin", -1, 0.95, 0.05)] },
   { title: "Landing", open: false, specs: [S("attract", 0.005, 0.5, 0.005), S("arriveK", 0.01, 0.3, 0.005), S("settleRadius", 0, 300, 1), S("damping", 0.8, 1, 0.005)] },
   { title: "Resting", open: false, specs: [S("restFollow", 0, 1, 0.05, "how rigidly resting dots follow a scrolled scene"), S("restNoise", 0, 1, 0.01, "noise in resting dots' spring motion")] },
@@ -137,9 +137,7 @@ export const MOTION: { title: string; specs: Spec[]; open?: boolean }[] = [
     title: "Crowd",
     open: false,
     specs: [
-      { kind: "toggle", path: "motion.crowd.enabled", help: "particles in flight (or knocked off their rest spot) push each other apart" },
       { kind: "range", path: "motion.crowd.strength", min: 0, max: 15, step: 0.1 },
-      { kind: "range", path: "motion.crowd.distance", min: 0, max: 150, step: 1, help: "displacement where the crowd force starts" },
       { kind: "range", path: "motion.crowd.cellPx", min: 2, max: 24, step: 1 },
       { kind: "toggle", path: "motion.crowd.blur" },
     ],

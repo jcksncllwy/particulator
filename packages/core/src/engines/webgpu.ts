@@ -21,8 +21,8 @@ const STEP_FIELDS = [
   ...SCENE_FIELDS.map((f) => `a${f}`), ...SCENE_FIELDS.map((f) => `b${f}`),
   "aShiftX", "aShiftY", "bShiftX", "bShiftY",
   "restFollow", "restNoise", "walls", "wallMargin",
-  "wallBounce", "crowd", "crowdDist", "cellPx", "gridW", "gridH", "wallK", "wallRange", "blur", "wallStrength", "wallCruise", "mouseNoise",
-  "mouseFalloff", "mouseCrowd", "crowdBase", "pad5",
+  "wallBounce", "crowd", "pad6", "cellPx", "gridW", "gridH", "wallK", "wallRange", "blur", "wallStrength", "wallCruise", "mouseNoise",
+  "mouseFalloff", "mouseCrowd", "crowdFlight", "pad5",
 ] as const;
 const RENDER_FIELDS = [
   "vw", "vh", "dpr", "alpha", "inkR", "inkG", "inkB", "size",
@@ -308,7 +308,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     // Crowd: displaced particles (with somewhere visible to be) push each other apart.
     var crowdW = 0.0;
     if (u.crowd > 0.0 && T.w > 0.0) {
-      if (u.crowdBase > 0.0) { crowdW = smoothstep(u.crowdDist, u.crowdDist * 2.0, dist); }
+      if (u.crowdFlight > 0.0 && flying) { crowdW = 1.0; }
       // Pressed with press.crowd: everything under the cursor crowds too, weighted by the cursor's bell.
       if (u.mouseCrowd > 0.0) {
         let x = length(p.pos - vec2f(u.mouseX, u.mouseY)) / u.mouseRadius;
@@ -701,7 +701,7 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
     SU.set("vw", u.vw); SU.set("vh", u.vh); SU.set("count", u.count); SU.set("time", u.time);
     SU.set("t", u.t); SU.set("eased", u.eased); SU.set("drift", u.drift); SU.set("steer", u.steer ? 1 : 0);
     SU.set("mouseX", u.mouse?.x ?? 0); SU.set("mouseY", u.mouse?.y ?? 0); SU.set("mouseSign", u.mouse ? u.mouseSign : 0);
-    SU.set("mouseRadius", u.mouseRadius); SU.set("mouseStrength", u.mouseStrength); SU.set("mouseNoise", u.mouseNoise); SU.set("mouseFalloff", u.mouseFalloff); SU.set("mouseCrowd", u.mouse ? u.mouseCrowd : 0); SU.set("crowdBase", u.crowdBase ? 1 : 0);
+    SU.set("mouseRadius", u.mouseRadius); SU.set("mouseStrength", u.mouseStrength); SU.set("mouseNoise", u.mouseNoise); SU.set("mouseFalloff", u.mouseFalloff); SU.set("mouseCrowd", u.mouse ? u.mouseCrowd : 0); SU.set("crowdFlight", u.crowdFlight ? 1 : 0);
     SU.set("aShiftX", u.shiftA.x); SU.set("aShiftY", u.shiftA.y); SU.set("bShiftX", u.shiftB.x); SU.set("bShiftY", u.shiftB.y);
     SU.set("texOffX", u.texOffX % texN); SU.set("texOffY", u.texOffY % texN); SU.set("texN", texN); SU.set("texelPx", f.texelPx);
     for (const k of ["attract", "arriveK", "settleRadius", "damping", "homing", "accel", "maxSpeed", "speedVar", "stagger",
@@ -716,14 +716,14 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
     }
     const cw = u.crowd, wl = u.walls;
     const gw = Math.ceil(u.vw / cw.cellPx) + 1, gh = Math.ceil(u.vh / cw.cellPx) + 1;
-    if (cw.enabled && (gw !== gridW || gh !== gridH)) {
+    if (cw.grid && (gw !== gridW || gh !== gridH)) {
       gridW = gw; gridH = gh;
       densBufs.forEach((b) => b.destroy());
       densBufs = [0, 1].map(() => device.createBuffer({ size: gridW * gridH * 4, usage: U.STORAGE | U.COPY_DST }));
       bindGroups();
     }
     SU.set("walls", wl.enabled ? 1 : 0); SU.set("wallMargin", wl.margin); SU.set("wallBounce", wl.bounce); SU.set("wallK", wl.stiffness); SU.set("wallRange", wl.range); SU.set("wallStrength", wl.strength); SU.set("wallCruise", wl.cruise ? 1 : 0); SU.set("blur", cw.blur ? 1 : 0);
-    SU.set("crowd", cw.enabled ? cw.strength : 0); SU.set("crowdDist", cw.distance); SU.set("cellPx", cw.cellPx);
+    SU.set("crowd", cw.grid ? cw.strength : 0); SU.set("cellPx", cw.cellPx);
     SU.set("gridW", gridW); SU.set("gridH", gridH);
     device.queue.writeBuffer(stepBuf, 0, SU.data);
 
@@ -731,9 +731,9 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
     const q = stepsThisFrame < MAX_STEPS_TIMED && querySet
       ? { timestampWrites: { querySet, beginningOfPassWriteIndex: stepsThisFrame * 2, endOfPassWriteIndex: stepsThisFrame * 2 + 1 } }
       : {};
-    if (cw.enabled) enc.clearBuffer(densBufs[0]);
-    if (cw.enabled && !gridWasOn) enc.clearBuffer(densBufs[1]); // the grid was idle: drop stale density
-    gridWasOn = cw.enabled;
+    if (cw.grid) enc.clearBuffer(densBufs[0]);
+    if (cw.grid && !gridWasOn) enc.clearBuffer(densBufs[1]); // the grid was idle: drop stale density
+    gridWasOn = cw.grid;
     const pass = enc.beginComputePass(q);
     if (live) {
       pass.setPipeline(noisePipeline);
@@ -743,7 +743,7 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
     pass.setPipeline(simPipeline);
     pass.setBindGroup(0, simBG);
     pass.dispatchWorkgroups(Math.ceil(u.count / 256));
-    if (cw.enabled) {
+    if (cw.grid) {
       pass.setPipeline(blurPipeline);
       pass.setBindGroup(0, blurBG);
       pass.dispatchWorkgroups(Math.ceil(gridW / 8), Math.ceil(gridH / 8));

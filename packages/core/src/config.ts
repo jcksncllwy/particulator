@@ -89,7 +89,7 @@ export type MotionConfig = {
   steer: SteerParams;
   /** Keep particles on screen: they bounce off the viewport edges instead of leaving it. */
   walls: WallsConfig;
-  /** Crowd pressure between displaced particles (steer preset). See CrowdConfig. */
+  /** Crowd pressure between flying (or cursor-pressed) particles (steer preset). See CrowdConfig. */
   crowd: CrowdConfig;
 };
 
@@ -115,17 +115,17 @@ export type WallsConfig = {
 };
 
 /**
- * Particles that are more than `distance` px from where they belong (in flight,
- * pressed against a wall, knocked loose) splat into a coarse density grid and
- * get pushed down its gradient, so crowds spread instead of collapsing into a
- * line. Particles resting in their image neither push nor get pushed, so dense
- * areas of an image stay dense.
+ * Crowd pressure. Crowding particles splat into a coarse density grid and get
+ * pushed down its gradient, so swarms spread instead of collapsing into a line.
+ * Who crowds: particles in flight (`flight`), and those under a pressed cursor
+ * (interaction.mouse.press.crowd). Resting particles neither push nor get
+ * pushed, so dense areas of an image stay dense, and scrolling (resting
+ * particles trailing their spots) never sets it off.
  */
 export type CrowdConfig = {
-  enabled: boolean;
+  /** Particles in flight push each other apart. */
+  flight: boolean;
   strength: number;
-  /** Displacement (px from target) where the force starts; full strength at 2x. */
-  distance: number;
   /** Density grid cell size, px. */
   cellPx: number;
   /** Smooth the density grid (5x5 blur) before particles read it. Evens out clumps and grid striping. */
@@ -209,7 +209,7 @@ export const DEFAULTS: Omit<Effect, "scenes"> = {
       restFollow: 0.75, restNoise: 0.25,
     },
     walls: { enabled: false, margin: 0, stiffness: 0.08, range: 10, strength: 0.6, cruise: true, bounce: 0.3 },
-    crowd: { enabled: false, strength: 4, distance: 15, cellPx: 6, blur: true },
+    crowd: { flight: false, strength: 4, cellPx: 6, blur: true },
   },
   field: {
     size: 256, texelPx: 4, features: 5, octaves: 3, lacunarity: 2, gain: 0.5,

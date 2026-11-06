@@ -281,11 +281,11 @@ export function createStage(opts: StageOptions): Stage {
         mouse, mouseSign: m.mode === "repel" ? 1 : m.mode === "attract" ? -1 : 0,
         mouseRadius: m.radius * (1 + (pr.radius - 1) * pl), mouseStrength: m.strength * (1 + (pr.strength - 1) * pl),
         mouseNoise: pr.swirl ? pr.noise * pl : 0, mouseFalloff: m.falloff ?? 2,
-        mouseCrowd: pressCrowd, crowdBase: effect.motion.crowd.enabled,
+        mouseCrowd: pressCrowd, crowdFlight: effect.motion.crowd.flight,
         texOffX, texOffY, texZ, liveNoise: effect.field.live,
         steerParams: effect.motion.steer, field: effect.field,
         walls: effect.motion.walls,
-        crowd: pressCrowd > 0 && !effect.motion.crowd.enabled ? { ...effect.motion.crowd, enabled: true } : effect.motion.crowd,
+        crowd: { ...effect.motion.crowd, grid: effect.motion.crowd.flight || pressCrowd > 0 },
       });
       noise += engine.timings().noiseMs;
       acc -= STEP_MS;

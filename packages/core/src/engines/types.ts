@@ -23,14 +23,15 @@ export type StepInputs = {
   mouseFalloff: number;
   /** Crowd force under the cursor (0..1 press level; the bell shapes it); nonzero while pressed with press.crowd on. */
   mouseCrowd: number;
-  /** Whether displaced particles crowd (motion.crowd.enabled). `crowd.enabled` itself means "run the density grid", which pressing can also need. */
-  crowdBase: boolean;
+  /** Flying particles crowd (motion.crowd.flight). */
+  crowdFlight: boolean;
   texOffX: number; texOffY: number; // field scroll (texels)
   texZ: number; // live-noise slice
   liveNoise: boolean;
   steerParams: SteerParams;
   walls: WallsConfig;
-  crowd: CrowdConfig;
+  /** Crowd tuning, plus whether the density grid runs this step (flight crowding or a crowd press). */
+  crowd: CrowdConfig & { grid: boolean };
   field: FieldConfig;
 };
 
