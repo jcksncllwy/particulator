@@ -46,6 +46,17 @@ describe("drivers", () => {
     expect(s.to).toBe(0);
     expect(s.t).toBeCloseTo(0.5, 1);
   });
+  test("scroll snap commits past the threshold and flies on a clock", () => {
+    let top = 0; // page scroll in px; sections are 1000px tall
+    (globalThis as any).document = { querySelectorAll: () => [0, 1, 2].map((i) => ({ getBoundingClientRect: () => ({ top: i * 1000 - top, left: 0 }) })) };
+    const d = createDriver({ type: "scroll", sections: "section", mode: "snap", threshold: 0.5, duration: 1 });
+    expect(d.state(0, 3)).toEqual({ from: 0, to: 0, t: 0 });
+    top = 400; expect(d.state(100, 3)).toEqual({ from: 0, to: 0, t: 0 }); // under threshold: stay
+    top = 600; expect(d.state(200, 3)).toEqual({ from: 0, to: 1, t: 0 }); // past it: start flight
+    top = 650; expect(d.state(700, 3).t).toBeCloseTo(0.5); // timed, not scrubbed
+    expect(d.state(1200, 3)).toEqual({ from: 1, to: 1, t: 0 });
+    delete (globalThis as any).document;
+  });
   test("time pingpong reverses", () => {
     const d = createDriver({ type: "time", hold: 0, transition: 1, loop: "pingpong" });
     const start = performance.now();

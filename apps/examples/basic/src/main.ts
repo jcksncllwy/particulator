@@ -8,7 +8,7 @@ const scene = (id: string) => ({
 
 const effect: EffectInput = {
   scenes: [scene("sphere"), scene("glyph"), scene("star")],
-  timeline: { driver: { type: "scroll", sections: "section" } },
+  timeline: { driver: { type: "scroll", sections: "section", mode: "snap" } },
   look: { ink: { light: "#1a1a1a", dark: "#f5f1e8" }, theme: "class:dark" },
   stage: { zIndex: 1 },
 };

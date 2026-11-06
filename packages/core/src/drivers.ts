@@ -79,22 +79,42 @@ export function createDriver(cfg: DriverConfig): Driver {
     }
     case "scroll": {
       // Scene i rests while section i's leading edge is at the viewport's leading edge.
+      const scrolled = (n: number): number => {
+        const els = Array.from(document.querySelectorAll(cfg.sections)).slice(0, n);
+        if (els.length < 2) return 0;
+        const rects = els.map((e) => e.getBoundingClientRect());
+        let axis = cfg.axis ?? "auto";
+        if (axis === "auto") axis = Math.abs(rects[1].left - rects[0].left) > Math.abs(rects[1].top - rects[0].top) ? "x" : "y";
+        const pos = rects.map((r) => (axis === "x" ? r.left : r.top));
+        if (pos[0] >= 0) return 0;
+        for (let i = 0; i < pos.length - 1; i++) {
+          if (pos[i] <= 0 && pos[i + 1] > 0) return i - pos[i] / (pos[i + 1] - pos[i]);
+        }
+        return els.length - 1;
+      };
+      if (cfg.mode !== "snap") return { state: (_now, n) => fromProgress(scrolled(n), n) };
+
+      // Snap: the scene to show is the one the page is past `threshold` of the way
+      // into; changing it starts a timed flight (from wherever the particles are headed).
+      const threshold = clamp(cfg.threshold ?? 0.5, 0, 1);
+      const dur = Math.max(0, cfg.duration ?? 1.5) * 1000;
+      let cur: Transition | null = null;
+      let start = 0;
       return {
-        state: (_now, n) => {
-          const els = Array.from(document.querySelectorAll(cfg.sections)).slice(0, n);
-          if (els.length < 2) return { from: 0, to: 0, t: 0 };
-          const rects = els.map((e) => e.getBoundingClientRect());
-          let axis = cfg.axis ?? "auto";
-          if (axis === "auto") axis = Math.abs(rects[1].left - rects[0].left) > Math.abs(rects[1].top - rects[0].top) ? "x" : "y";
-          const pos = rects.map((r) => (axis === "x" ? r.left : r.top));
-          let p = els.length - 1;
-          if (pos[0] >= 0) p = 0;
-          else {
-            for (let i = 0; i < pos.length - 1; i++) {
-              if (pos[i] <= 0 && pos[i + 1] > 0) { p = i - pos[i] / (pos[i + 1] - pos[i]); break; }
-            }
+        state: (now, n) => {
+          const p = scrolled(n);
+          const want = clamp(p - Math.floor(p) >= threshold ? Math.ceil(p) : Math.floor(p), 0, Math.max(0, n - 1));
+          if (!cur) cur = { from: want, to: want, t: 0 }; // first frame: no flight
+          if (want !== cur.to) {
+            const here = cur.t >= 0.5 ? cur.to : cur.from;
+            cur = { from: here, to: want, t: 0 };
+            start = now;
           }
-          return fromProgress(p, n);
+          if (cur.from !== cur.to) {
+            const k = dur <= 0 ? 1 : clamp((now - start) / dur, 0, 1);
+            cur = k >= 1 ? { from: cur.to, to: cur.to, t: 0 } : { ...cur, t: k };
+          }
+          return cur;
         },
       };
     }

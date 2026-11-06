@@ -49,7 +49,20 @@ export type DriverConfig =
   /** Progress is set from code: stage.progress = 1.5, stage.goTo("dog"). */
   | { type: "api" }
   /** Progress follows the page: scene i rests while element i is at the top of the viewport (or scroll container). */
-  | { type: "scroll"; sections: string; axis?: "auto" | "x" | "y" }
+  | {
+      type: "scroll";
+      sections: string;
+      axis?: "auto" | "x" | "y";
+      /**
+       * "scrub" (default): particles track the scroll position, so a half-scrolled
+       * page leaves them split between two scenes. "snap": once you've scrolled
+       * `threshold` of the way to the next section, the particles commit to it and
+       * fly there over `duration` seconds, so they always end up in one image.
+       */
+      mode?: "scrub" | "snap";
+      threshold?: number; // default 0.5
+      duration?: number; // seconds, default 1.5
+    }
   /** Plays through the scenes on a clock. */
   | { type: "time"; hold: number; transition: number; loop?: "loop" | "pingpong" | "once" };
 
