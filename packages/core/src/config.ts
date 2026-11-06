@@ -218,7 +218,7 @@ export const DEFAULTS: Omit<Effect, "scenes"> = {
     ridged: true, sharpness: 3, seed: 7, drift: 0.15, live: false, liveSpeed: 0.004,
   },
   look: { ink: "#1a1a1a", theme: "none", size: 1, streak: 1, streakTaper: 0.7, streakFade: 0.3, restStreak: 0 },
-  interaction: { mouse: { mode: "repel", radius: 70, strength: 0.15, falloff: 2, drag: 0.25, press: { radius: 1.6, strength: 3, drag: 2, swirl: true, noise: 0.6, crowd: false } } },
+  interaction: { mouse: { mode: "repel", radius: 70, strength: 0.15, falloff: 2, drag: 0.08, press: { radius: 1.6, strength: 3, drag: 2, swirl: true, noise: 0.6, crowd: false } } },
   stage: { zIndex: 0 },
 };
 
