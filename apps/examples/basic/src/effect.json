@@ -1,0 +1,77 @@
+{
+  "scenes": [
+    {
+      "id": "sphere",
+      "source": {
+        "type": "image",
+        "src": "img/sphere.png",
+        "dotter": {
+          "count": 30000,
+          "seed": 3
+        }
+      },
+      "placement": {
+        "mode": "element",
+        "selector": "[data-particulator=\"sphere\"]",
+        "fit": "contain"
+      }
+    },
+    {
+      "id": "glyph",
+      "source": {
+        "type": "image",
+        "src": "img/glyph.png",
+        "dotter": {
+          "count": 30000,
+          "seed": 3
+        }
+      },
+      "placement": {
+        "mode": "element",
+        "selector": "[data-particulator=\"glyph\"]",
+        "fit": "contain"
+      }
+    },
+    {
+      "id": "star",
+      "source": {
+        "type": "image",
+        "src": "img/star.png",
+        "dotter": {
+          "count": 30000,
+          "seed": 3
+        }
+      },
+      "placement": {
+        "mode": "element",
+        "selector": "[data-particulator=\"star\"]",
+        "fit": "contain"
+      }
+    }
+  ],
+  "timeline": {
+    "driver": {
+      "type": "scroll",
+      "sections": "section",
+      "mode": "snap"
+    }
+  },
+  "motion": {
+    "walls": {
+      "enabled": true
+    },
+    "crowd": {
+      "enabled": true
+    }
+  },
+  "look": {
+    "ink": {
+      "light": "#1a1a1a",
+      "dark": "#f5f1e8"
+    },
+    "theme": "class:dark"
+  },
+  "stage": {
+    "zIndex": 1
+  }
+}

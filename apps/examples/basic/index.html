@@ -16,8 +16,6 @@
     body.debug .art { outline-color: color-mix(in srgb, var(--ink) 30%, transparent); }
     #hud { position: fixed; left: 12px; bottom: 12px; z-index: 10; font: 12px/1.4 ui-monospace, monospace; background: color-mix(in srgb, var(--paper) 85%, transparent); padding: 6px 8px; border-radius: 6px; }
     #hud button { font: inherit; }
-    #tune { position: fixed; right: 12px; bottom: 12px; z-index: 10; font: 12px/1.4 ui-monospace, monospace; background: color-mix(in srgb, var(--paper) 85%, transparent); padding: 6px 8px; border-radius: 6px; display: grid; grid-template-columns: auto 10rem 3em; gap: 2px 8px; align-items: center; }
-    #tune output { text-align: right; }
   </style>
 </head>
 <body>
@@ -30,11 +28,10 @@
     <div class="art" data-particulator="glyph"></div>
   </section>
   <section>
-    <div class="copy"><h2>Star</h2><p>Press <kbd>F</kbd> to show the steering field, <kbd>D</kbd> to outline the boxes, <kbd>T</kbd> for dark mode.</p></div>
+    <div class="copy"><h2>Star</h2><p>Press <kbd>F</kbd> to show the steering field, <kbd>D</kbd> to outline the boxes, <kbd>T</kbd> for dark mode. In dev, the studio is open: <kbd>`</kbd> hides it.</p></div>
     <div class="art" data-particulator="star"></div>
   </section>
   <div id="hud"></div>
-  <div id="tune"></div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
