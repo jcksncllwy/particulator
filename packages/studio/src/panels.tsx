@@ -21,7 +21,7 @@ export function TopBar({ store, onHide }: { store: Store; onHide: () => void }) 
   const gpu = s && s.gpuSimMs !== null && s.gpuDrawMs !== null ? s.gpuSimMs + s.gpuDrawMs : null;
   return (
     <div class="top panel">
-      <b>particulator</b>
+      <a class="brand" href="https://github.com/jcksncllwy/particulator" target="_blank" rel="noopener" title="particulator on GitHub"><b>particulator</b> <span class="dim">↗</span></a>
       <span class="dim">{store.storage.label}</span>
       <span class="grow" />
       {s && (

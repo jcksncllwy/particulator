@@ -25,6 +25,8 @@ b { font-weight: 700; }
 .top .status { color: var(--dim); max-width: 32ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .top .status.err { color: var(--err); white-space: normal; max-width: 48ch; }
 .hud { font-variant-numeric: tabular-nums; }
+.brand { color: var(--fg); text-decoration: none; }
+.brand:hover b { text-decoration: underline; }
 .reveal { bottom: 12px; left: 12px; border-radius: 6px; padding: 4px 10px; background: var(--bg); }
 
 .left { top: 50px; left: 8px; width: 200px; max-height: calc(100vh - 116px); border-radius: 8px; padding: 8px; overflow: auto; }

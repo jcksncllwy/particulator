@@ -78,6 +78,7 @@
   },
   "interaction": {
     "mouse": {
+      "drag": 0.05,
       "press": {
         "crowd": true
       }
