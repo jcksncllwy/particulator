@@ -21,8 +21,9 @@ const STEP_FIELDS = [
   ...SCENE_FIELDS.map((f) => `a${f}`), ...SCENE_FIELDS.map((f) => `b${f}`),
   "aShiftX", "aShiftY", "bShiftX", "bShiftY",
   "restFollow", "restNoise", "walls", "wallMargin",
-  "wallBounce", "crowd", "pad6", "cellPx", "gridW", "gridH", "wallK", "wallRange", "blur", "wallStrength", "wallCruise", "mouseNoise",
+  "wallBounce", "crowd", "mousePrevX", "cellPx", "gridW", "gridH", "wallK", "wallRange", "blur", "wallStrength", "wallCruise", "mouseNoise",
   "mouseFalloff", "mouseCrowd", "crowdFlight", "lead",
+  "mousePrevY", "mouseVelX", "mouseVelY", "mouseDrag", "pad7", "pad8", "pad9", "pad10",
 ] as const;
 const RENDER_FIELDS = [
   "vw", "vh", "dpr", "alpha", "inkR", "inkG", "inkB", "size",
@@ -196,14 +197,31 @@ fn targetOf(i: u32, S: SceneX) -> vec4f {
 
 fn sample(p: vec2f) -> f32 { return sampleField(p.x, p.y, u.texN, u.texelPx, u.texOffX, u.texOffY); }
 
+// Offset from the nearest point on the cursor's path this step (the segment it swept), so a fast
+// stroke reaches everything it crossed, not just where it was sampled.
+fn fromCursor(q: vec2f) -> vec2f {
+  let a = vec2f(u.mousePrevX, u.mousePrevY);
+  let ab = vec2f(u.mouseX, u.mouseY) - a;
+  let h = clamp(dot(q - a, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0);
+  return q - (a + ab * h);
+}
+
 fn repel(p: ptr<function, Particle>) {
   if (u.mouseSign == 0.0) { return; }
-  let m = (*p).pos - vec2f(u.mouseX, u.mouseY);
+  let m = fromCursor((*p).pos);
   let dist = length(m);
-  if (dist < u.mouseRadius && dist > 0.0) {
+  if (dist < u.mouseRadius) {
     let x = dist / u.mouseRadius;
     let f = pow(1.0 - x * x, u.mouseFalloff); // smooth bell, zero slope at the edge
-    (*p).vel += m / dist * (f * u.mouseStrength * u.mouseSign);
+    if (dist > 0.0) { (*p).vel += m / dist * (f * u.mouseStrength * u.mouseSign); }
+    // Drag: top up speed along the stroke toward the cursor's own speed (never past it).
+    let mv = vec2f(u.mouseVelX, u.mouseVelY);
+    let ms = length(mv);
+    if (u.mouseDrag > 0.0 && ms > 0.01) {
+      let dir = mv / ms;
+      let along = dot((*p).vel, dir);
+      if (along < ms) { (*p).vel += dir * ((ms - along) * u.mouseDrag * f); }
+    }
     // Pressed: churn in the noise field (a direction from the field, turning over time).
     if (u.mouseNoise > 0.0) {
       let a = sample((*p).pos) * 12.566 + u.time * 2.0;
@@ -317,7 +335,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
       if (u.crowdFlight > 0.0 && flying) { crowdW = 1.0; }
       // Pressed with press.crowd: everything under the cursor crowds too, weighted by the cursor's bell.
       if (u.mouseCrowd > 0.0) {
-        let x = length(p.pos - vec2f(u.mouseX, u.mouseY)) / u.mouseRadius;
+        let x = length(fromCursor(p.pos)) / u.mouseRadius;
         if (x < 1.0) { crowdW = max(crowdW, pow(1.0 - x * x, u.mouseFalloff) * u.mouseCrowd); }
       }
       if (crowdW > 0.0) {
@@ -706,7 +724,9 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
     const sp = u.steerParams, f = u.field;
     SU.set("vw", u.vw); SU.set("vh", u.vh); SU.set("count", u.count); SU.set("time", u.time);
     SU.set("t", u.t); SU.set("eased", u.eased); SU.set("drift", u.drift); SU.set("steer", u.steer ? 1 : 0);
-    SU.set("mouseX", u.mouse?.x ?? 0); SU.set("mouseY", u.mouse?.y ?? 0); SU.set("mouseSign", u.mouse ? u.mouseSign : 0);
+    SU.set("mouseX", u.mouse?.x ?? 0); SU.set("mouseY", u.mouse?.y ?? 0);
+    SU.set("mousePrevX", (u.mousePrev ?? u.mouse)?.x ?? 0); SU.set("mousePrevY", (u.mousePrev ?? u.mouse)?.y ?? 0);
+    SU.set("mouseVelX", u.mouseVel.x); SU.set("mouseVelY", u.mouseVel.y); SU.set("mouseDrag", u.mouseDrag); SU.set("mouseSign", u.mouse ? u.mouseSign : 0);
     SU.set("mouseRadius", u.mouseRadius); SU.set("mouseStrength", u.mouseStrength); SU.set("mouseNoise", u.mouseNoise); SU.set("mouseFalloff", u.mouseFalloff); SU.set("mouseCrowd", u.mouse ? u.mouseCrowd : 0); SU.set("crowdFlight", u.crowdFlight ? 1 : 0); SU.set("lead", u.lead);
     SU.set("aShiftX", u.shiftA.x); SU.set("aShiftY", u.shiftA.y); SU.set("bShiftX", u.shiftB.x); SU.set("bShiftY", u.shiftB.y);
     SU.set("texOffX", u.texOffX % texN); SU.set("texOffY", u.texOffY % texN); SU.set("texN", texN); SU.set("texelPx", f.texelPx);

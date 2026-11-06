@@ -47,6 +47,16 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
     }
     const sample = (x: number, y: number) => sampleField(tex, texN, u.field.texelPx, u.texOffX, u.texOffY, x, y);
     const mouse = u.mouse, mr = u.mouseRadius, ms = u.mouseStrength * u.mouseSign;
+    // Offset from the nearest point on the cursor's path this step (the segment it swept), so a
+    // fast stroke reaches everything it crossed, not just where it was sampled. Written to `cur`.
+    const ma = u.mousePrev ?? mouse, abx = mouse && ma ? mouse.x - ma.x : 0, aby = mouse && ma ? mouse.y - ma.y : 0;
+    const abLen2 = Math.max(abx * abx + aby * aby, 1e-6), mvs = Math.hypot(u.mouseVel.x, u.mouseVel.y);
+    const cur = [0, 0];
+    const fromCursor = (qx: number, qy: number) => {
+      if (!ma) { cur[0] = cur[1] = 1e9; return; }
+      const h = Math.min(1, Math.max(0, ((qx - ma.x) * abx + (qy - ma.y) * aby) / abLen2));
+      cur[0] = qx - (ma.x + abx * h); cur[1] = qy - (ma.y + aby * h);
+    };
     const ca = Math.cos(sp.sensorAngle), sa = Math.sin(sp.sensorAngle), sd = sp.sensorDist;
 
     const wl = u.walls, cw = u.crowd, cell = cw.cellPx;
@@ -100,10 +110,16 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
 
       const repel = () => {
         if (!mouse || ms === 0) return;
-        const mx = cx - mouse.x, my = cy - mouse.y, dist = Math.sqrt(mx * mx + my * my);
-        if (dist < mr && dist > 0) {
+        fromCursor(cx, cy);
+        const mx = cur[0], my = cur[1], dist = Math.sqrt(mx * mx + my * my);
+        if (dist < mr) {
           const x = dist / mr, f = Math.pow(1 - x * x, u.mouseFalloff); // smooth bell, zero slope at the edge
-          vx += (mx / dist) * f * ms; vy += (my / dist) * f * ms;
+          if (dist > 0) { vx += (mx / dist) * f * ms; vy += (my / dist) * f * ms; }
+          // Drag: top up speed along the stroke toward the cursor's own speed (never past it).
+          if (u.mouseDrag > 0 && mvs > 0.01) {
+            const dx = u.mouseVel.x / mvs, dy = u.mouseVel.y / mvs, along = vx * dx + vy * dy;
+            if (along < mvs) { const k = (mvs - along) * u.mouseDrag * f; vx += dx * k; vy += dy * k; }
+          }
           // Pressed: churn in the noise field (a direction from the field, turning over time).
           if (u.mouseNoise > 0) {
             const a = sample(cx, cy) * 12.566 + u.time * 2;
@@ -206,7 +222,8 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
           if (u.crowdFlight && flying) crowdW = 1;
           // Pressed with press.crowd: everything under the cursor crowds too, weighted by the cursor's bell.
           if (mouse && u.mouseCrowd > 0) {
-            const x = Math.hypot(cx - mouse.x, cy - mouse.y) / mr;
+            fromCursor(cx, cy);
+            const x = Math.hypot(cur[0], cur[1]) / mr;
             if (x < 1) crowdW = Math.max(crowdW, Math.pow(1 - x * x, u.mouseFalloff) * u.mouseCrowd);
           }
           if (crowdW > 0) {

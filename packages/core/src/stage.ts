@@ -79,6 +79,8 @@ export type Stage = {
 
 const STEP_MS = 1000 / 60;
 const MAX_STEPS = 4;
+/** Cursor drag is capped at this speed (px/step), so a flick doesn't fling particles off screen. */
+const MAX_MOUSE_SPEED = 40;
 
 // Dot clouds by source (url + options), so editing one scene doesn't re-stipple the rest.
 const cloudCache = new Map<string, Promise<DotCloud | null>>();
@@ -147,12 +149,21 @@ export function createStage(opts: StageOptions): Stage {
 
   // Input / theme
   let mouse: { x: number; y: number } | null = null;
-  const onMove = (e: MouseEvent) => { mouse = { x: e.clientX, y: e.clientY }; };
+  // The cursor as the sim last saw it, its smoothed velocity, and whether it just teleported
+  // (re-entered the window, a finger touched down), which shouldn't sweep a segment across the screen.
+  let stepMouse: { x: number; y: number } | null = null, mouseJump = false;
+  let mouseVel = { x: 0, y: 0 };
+  const onMove = (e: MouseEvent) => { if (!mouse) mouseJump = true; mouse = { x: e.clientX, y: e.clientY }; };
   const onLeave = () => { mouse = null; };
   // Pressing disrupts more. Presses on UI that opts out (the studio's panels and handles) don't count.
   let pressed = false, pressLevel = 0;
   const optedOut = (e: Event) => e.composedPath().some((t) => t instanceof Element && t.hasAttribute("data-particulator-ignore"));
-  const onDown = (e: PointerEvent) => { if (optedOut(e)) return; pressed = true; mouse = { x: e.clientX, y: e.clientY }; };
+  const onDown = (e: PointerEvent) => {
+    if (optedOut(e)) return;
+    pressed = true;
+    if (e.pointerType !== "mouse" || !mouse) mouseJump = true;
+    mouse = { x: e.clientX, y: e.clientY };
+  };
   const onUp = (e: PointerEvent) => { pressed = false; if (e.pointerType !== "mouse") mouse = null; }; // a lifted finger isn't hovering
   const onPointerMove = (e: PointerEvent) => { if (e.pointerType !== "mouse" && pressed) mouse = { x: e.clientX, y: e.clientY }; };
   const onResize = () => engine?.resize(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1);
@@ -266,11 +277,26 @@ export function createStage(opts: StageOptions): Stage {
     let steps = 0;
     const t0 = performance.now();
     let noise = 0;
+    // The cursor sweeps from where the last step saw it to where it is now, spread across this
+    // frame's steps; each step gets its slice of the path.
+    const nSteps = Math.min(MAX_STEPS, Math.floor(acc / STEP_MS));
+    const sweepFrom = mouse && stepMouse && !mouseJump ? stepMouse : mouse;
+    if (nSteps > 0) mouseJump = false;
+    let segA = sweepFrom;
     while (acc >= STEP_MS && steps < MAX_STEPS) {
+      let segB: { x: number; y: number } | null = null;
+      if (mouse && sweepFrom && segA) {
+        const k = (steps + 1) / nSteps;
+        segB = { x: sweepFrom.x + (mouse.x - sweepFrom.x) * k, y: sweepFrom.y + (mouse.y - sweepFrom.y) * k };
+        mouseVel.x += (segB.x - segA.x - mouseVel.x) * 0.5;
+        mouseVel.y += (segB.y - segA.y - mouseVel.y) * 0.5;
+        const sp = Math.hypot(mouseVel.x, mouseVel.y);
+        if (sp > MAX_MOUSE_SPEED) { mouseVel.x *= MAX_MOUSE_SPEED / sp; mouseVel.y *= MAX_MOUSE_SPEED / sp; }
+      } else { mouseVel.x *= 0.5; mouseVel.y *= 0.5; }
       time += 0.016;
       pressLevel += ((pressed ? 1 : 0) - pressLevel) * 0.08;
       const pl = pressLevel < 0.001 || !mouse || m.mode === "off" ? 0 : pressLevel;
-      const pr = m.press ?? { radius: 1, strength: 1, swirl: false, noise: 0, crowd: false };
+      const pr = m.press ?? { radius: 1, strength: 1, drag: 1, swirl: false, noise: 0, crowd: false };
       const pressCrowd = pr.crowd ? pl : 0;
       texOffX += effect.field.drift; texOffY += effect.field.drift * 0.37;
       if (effect.field.live) texZ += effect.field.liveSpeed;
@@ -278,7 +304,9 @@ export function createStage(opts: StageOptions): Stage {
         vw, vh, count: effect.particles.count, time, A, B, t: tr.t, eased, drift, lead: tr.lead ?? 0.1,
         shiftA: steps === 0 ? shiftOf(A) : zero, shiftB: steps === 0 ? shiftOf(B) : zero,
         steer: effect.motion.preset === "steer",
-        mouse, mouseSign: m.mode === "repel" ? 1 : m.mode === "attract" ? -1 : 0,
+        mouse: segB, mousePrev: segA, mouseVel: { ...mouseVel },
+        mouseDrag: m.mode === "off" ? 0 : (m.drag ?? 0) * (1 + ((pr.drag ?? 1) - 1) * pl),
+        mouseSign: m.mode === "repel" ? 1 : m.mode === "attract" ? -1 : 0,
         mouseRadius: m.radius * (1 + (pr.radius - 1) * pl), mouseStrength: m.strength * (1 + (pr.strength - 1) * pl),
         mouseNoise: pr.swirl ? pr.noise * pl : 0, mouseFalloff: m.falloff ?? 2,
         mouseCrowd: pressCrowd, crowdFlight: effect.motion.crowd.flight,
@@ -287,11 +315,13 @@ export function createStage(opts: StageOptions): Stage {
         walls: effect.motion.walls,
         crowd: { ...effect.motion.crowd, grid: effect.motion.crowd.flight || pressCrowd > 0 },
       });
+      segA = segB;
       noise += engine.timings().noiseMs;
       acc -= STEP_MS;
       if (steps === 0) stepCenters = xforms.map((S) => ({ x: S.cx, y: S.cy }));
       steps++;
     }
+    if (steps > 0) stepMouse = mouse;
     if (steps === MAX_STEPS) acc = 0; // fell behind: drop time rather than spiral
     const t1 = performance.now();
     const look = effect.look;

@@ -46,7 +46,7 @@ Everything an effect is, as one serializable object (`effect.json`). Only
 | `motion.crowd` | density-field pressure so swarms and edge piles spread out: `flight` turns it on for particles in flight; `strength`, `cellPx`, `blur` tune it (also used by a crowd press). Resting particles are never pushed, so scrolling doesn't set it off |
 | `field` | the steering noise field (texture params, `drift`, `live` 3D noise) |
 | `look` | `ink` (colour, or `{ light, dark }` with `theme`: `class:dark` / `media`), `size`, streaks (`streak`, `streakTaper`, `streakFade`; `restStreak` scales them for resting particles, 0 by default) |
-| `interaction.mouse` | `repel` / `attract` / `off`, radius, strength, `falloff` (edge softness); `press` multiplies radius and strength while the button or a touch is held, and adds noise-field swirl (`swirl`, by `noise`), crowd repulsion under the cursor (`crowd`, at `motion.crowd.strength`), or both |
+| `interaction.mouse` | `repel` / `attract` / `off`, radius, strength, `falloff` (edge softness), `drag` (particles are carried along the stroke, up to the cursor's speed). The cursor acts along the path it swept since the last step, so fast strokes leave no gaps; `press` multiplies radius, strength and drag while the button or a touch is held, and adds noise-field swirl (`swirl`, by `noise`), crowd repulsion under the cursor (`crowd`, at `motion.crowd.strength`), or both |
 | `particles.count` | particle pool size (30k default) |
 
 ## Stage API

@@ -17,7 +17,15 @@ export type StepInputs = {
   /** How far scenes A and B moved on screen since the last step (scroll, layout). Resting particles ride along. */
   shiftA: { x: number; y: number }; shiftB: { x: number; y: number };
   steer: boolean;
+  /**
+   * The cursor this step, swept: it moved from `mousePrev` to `mouse` since the last step, and
+   * particles react to the nearest point on that segment, so fast strokes leave no gaps.
+   */
   mouse: { x: number; y: number } | null;
+  mousePrev: { x: number; y: number } | null;
+  /** Smoothed cursor velocity (px/step) and how much of it particles under the cursor take on. */
+  mouseVel: { x: number; y: number };
+  mouseDrag: number;
   mouseSign: number; // +1 repel, -1 attract, 0 off
   mouseRadius: number; mouseStrength: number;
   /** Swirl kick near the cursor (px/step at its centre), from the noise field; nonzero while pressed. */

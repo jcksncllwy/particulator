@@ -165,13 +165,15 @@ export type InteractionConfig = {
     strength: number;
     /** Shape of the push across the radius: (1 - (d/r)²)^falloff. Higher fades out sooner and softer; 1 is a broad dome. */
     falloff: number;
+    /** Fraction of the cursor's velocity handed to particles under it each step, so a stroke drags a wake. 0 = off. */
+    drag: number;
     /**
      * While the button (or a touch) is held, ramping in and out over ~0.2s: radius and strength
-     * multiply up, plus either or both of: `swirl` (particles churn in the noise field, by `noise`)
+     * (and drag) multiply up, plus either or both of: `swirl` (particles churn in the noise field, by `noise`)
      * and `crowd` (particles under the cursor push each other apart with the crowd force, at
      * motion.crowd.strength, weighted by the same bell; works even with crowd disabled).
      */
-    press: { radius: number; strength: number; swirl: boolean; noise: number; crowd: boolean };
+    press: { radius: number; strength: number; drag: number; swirl: boolean; noise: number; crowd: boolean };
   };
 };
 
@@ -216,7 +218,7 @@ export const DEFAULTS: Omit<Effect, "scenes"> = {
     ridged: true, sharpness: 3, seed: 7, drift: 0.15, live: false, liveSpeed: 0.004,
   },
   look: { ink: "#1a1a1a", theme: "none", size: 1, streak: 1, streakTaper: 0.7, streakFade: 0.3, restStreak: 0 },
-  interaction: { mouse: { mode: "repel", radius: 70, strength: 0.15, falloff: 2, press: { radius: 1.6, strength: 3, swirl: true, noise: 0.6, crowd: false } } },
+  interaction: { mouse: { mode: "repel", radius: 70, strength: 0.15, falloff: 2, drag: 0.25, press: { radius: 1.6, strength: 3, drag: 2, swirl: true, noise: 0.6, crowd: false } } },
   stage: { zIndex: 0 },
 };
 
