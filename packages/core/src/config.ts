@@ -107,7 +107,7 @@ export type WallsConfig = {
   strength: number;
   /**
    * Particles whose rest spot is off screen aim at the nearest point inside the walls and never land.
-   * cruise: false = they decelerate toward it like a normal arrival; true = they keep cruise speed and orbit it.
+   * cruise: true (default) = they keep cruise speed and orbit it as a swarm; false = they decelerate toward it like a normal arrival.
    */
   cruise: boolean;
   /** At the viewport edge itself particles are stopped hard; fraction of speed kept when they bounce. */
@@ -195,8 +195,8 @@ export const DEFAULTS: Omit<Effect, "scenes"> = {
       sensorDist: 28, sensorAngle: 0.19, turnGain: 0.8, maxTurn: 0.3, alignMin: 0,
       restFollow: 0.75, restNoise: 0.25,
     },
-    walls: { enabled: false, margin: 15, stiffness: 0.08, range: 120, strength: 0.6, cruise: false, bounce: 0.3 },
-    crowd: { enabled: false, strength: 4, distance: 30, cellPx: 6, blur: true },
+    walls: { enabled: false, margin: 15, stiffness: 0.08, range: 120, strength: 0.6, cruise: true, bounce: 0.3 },
+    crowd: { enabled: false, strength: 4, distance: 15, cellPx: 6, blur: true },
   },
   field: {
     size: 256, texelPx: 4, features: 5, octaves: 3, lacunarity: 2, gain: 0.5,
