@@ -71,7 +71,9 @@ export type DriverConfig =
 /** Units are px and px/step; the sim steps at a fixed 60 Hz. */
 export type SteerParams = {
   attract: number; arriveK: number; settleRadius: number; damping: number;
-  homing: number; accel: number; maxSpeed: number; speedVar: number; stagger: number;
+  homing: number; accel: number; maxSpeed: number; speedVar: number;
+  /** Spread of departure times across a transition (0 = all at once). Particles leave in a sweep along the direction of travel: lowest first when moving forward (scrolling down), highest first going back. */
+  stagger: number;
   sensorDist: number; sensorAngle: number; turnGain: number; maxTurn: number; alignMin: number;
   /** Resting particles: 0 = spring after their scene when it moves (lag, springy), 1 = ride along rigidly. Default 0.75. */
   restFollow: number;
@@ -93,9 +95,11 @@ export type MotionConfig = {
 
 export type WallsConfig = {
   enabled: boolean;
-  /** Inset from the viewport edge, px (negative lets particles go that far past it). */
+  /** Inset from the viewport edge, px, where the soft wall starts pushing back. */
   margin: number;
-  /** Fraction of speed kept when bouncing off a wall (0 = stick, 1 = perfect bounce). */
+  /** Push per px past the margin (a spring, so particles pile up softly instead of in a line). */
+  stiffness: number;
+  /** At the viewport edge itself particles are stopped hard; fraction of speed kept when they bounce. */
   bounce: number;
 };
 
@@ -178,7 +182,7 @@ export const DEFAULTS: Omit<Effect, "scenes"> = {
       sensorDist: 28, sensorAngle: 0.19, turnGain: 0.8, maxTurn: 0.3, alignMin: 0,
       restFollow: 0.75, restNoise: 0.25,
     },
-    walls: { enabled: false, margin: 0, bounce: 0.3 },
+    walls: { enabled: false, margin: 15, stiffness: 0.08, bounce: 0.3 },
     crowd: { enabled: false, strength: 4, distance: 30, cellPx: 6 },
   },
   field: {

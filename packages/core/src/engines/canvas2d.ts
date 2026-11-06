@@ -77,11 +77,15 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
 
       const walls = () => {
         if (!wl.enabled) return;
-        const lo = wl.margin, hx = u.vw - wl.margin, hy = u.vh - wl.margin;
-        if (cx < lo) { cx = lo; vx = Math.abs(vx) * wl.bounce; }
-        if (cx > hx) { cx = hx; vx = -Math.abs(vx) * wl.bounce; }
-        if (cy < lo) { cy = lo; vy = Math.abs(vy) * wl.bounce; }
-        if (cy > hy) { cy = hy; vy = -Math.abs(vy) * wl.bounce; }
+        // Soft wall: a spring proportional to how far past the margin the particle is.
+        const lo = wl.margin, hx = u.vw - wl.margin, hy = u.vh - wl.margin, k = wl.stiffness;
+        if (cx < lo) vx += (lo - cx) * k; else if (cx > hx) vx -= (cx - hx) * k;
+        if (cy < lo) vy += (lo - cy) * k; else if (cy > hy) vy -= (cy - hy) * k;
+        // Hard stop at the viewport edge itself.
+        if (cx < 0) { cx = 0; vx = Math.abs(vx) * wl.bounce; }
+        if (cx > u.vw) { cx = u.vw; vx = -Math.abs(vx) * wl.bounce; }
+        if (cy < 0) { cy = 0; vy = Math.abs(vy) * wl.bounce; }
+        if (cy > u.vh) { cy = u.vh; vy = -Math.abs(vy) * wl.bounce; }
       };
 
       const repel = () => {
@@ -92,7 +96,12 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
 
       if (u.steer && landed) {
         // ---- steer: physarum-style flight + damped landing
-        const switchAt = 0.1 + s[o + P.stagger] * sp.stagger;
+        // Departure order: a sweep by where the particle rests in the scene it's leaving.
+        // Forward (scrolling down) the lowest leave first; going back, the highest.
+        targetOf(i, u.A, dots, u.vw, u.vh, ta);
+        let fy = Math.min(1, Math.max(0, ta[1] / u.vh));
+        if (u.B.index >= u.A.index) fy = 1 - fy;
+        const switchAt = 0.1 + 0.4 * sp.stagger * (fy * 0.85 + (s[o + P.stagger] / 0.4) * 0.15);
         const toB = u.t >= switchAt;
         targetOf(i, toB ? u.B : u.A, dots, u.vw, u.vh, ta);
         // A new target scene starts a flight; resting particles ride along with their scene.

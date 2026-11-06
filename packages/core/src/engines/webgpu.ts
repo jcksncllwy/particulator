@@ -21,7 +21,7 @@ const STEP_FIELDS = [
   ...SCENE_FIELDS.map((f) => `a${f}`), ...SCENE_FIELDS.map((f) => `b${f}`),
   "aShiftX", "aShiftY", "bShiftX", "bShiftY",
   "restFollow", "restNoise", "walls", "wallMargin",
-  "wallBounce", "crowd", "crowdDist", "cellPx", "gridW", "gridH", "pad0", "pad1",
+  "wallBounce", "crowd", "crowdDist", "cellPx", "gridW", "gridH", "wallK", "pad1",
 ] as const;
 const RENDER_FIELDS = [
   "vw", "vh", "dpr", "alpha", "inkR", "inkG", "inkB", "size",
@@ -108,12 +108,16 @@ fn splat(q: vec2f, w: f32) {
 }
 fn walls(p: ptr<function, Particle>) {
   if (u.walls < 0.5) { return; }
+  // Soft wall: a spring proportional to how far past the margin the particle is.
   let lo = vec2f(u.wallMargin);
   let hi = vec2f(u.vw, u.vh) - u.wallMargin;
-  if ((*p).pos.x < lo.x) { (*p).pos.x = lo.x; (*p).vel.x = abs((*p).vel.x) * u.wallBounce; }
-  if ((*p).pos.x > hi.x) { (*p).pos.x = hi.x; (*p).vel.x = -abs((*p).vel.x) * u.wallBounce; }
-  if ((*p).pos.y < lo.y) { (*p).pos.y = lo.y; (*p).vel.y = abs((*p).vel.y) * u.wallBounce; }
-  if ((*p).pos.y > hi.y) { (*p).pos.y = hi.y; (*p).vel.y = -abs((*p).vel.y) * u.wallBounce; }
+  (*p).vel += (max(lo - (*p).pos, vec2f(0.0)) - max((*p).pos - hi, vec2f(0.0))) * u.wallK;
+  // Hard stop at the viewport edge itself.
+  let e = vec2f(u.vw, u.vh);
+  if ((*p).pos.x < 0.0) { (*p).pos.x = 0.0; (*p).vel.x = abs((*p).vel.x) * u.wallBounce; }
+  if ((*p).pos.x > e.x) { (*p).pos.x = e.x; (*p).vel.x = -abs((*p).vel.x) * u.wallBounce; }
+  if ((*p).pos.y < 0.0) { (*p).pos.y = 0.0; (*p).vel.y = abs((*p).vel.y) * u.wallBounce; }
+  if ((*p).pos.y > e.y) { (*p).pos.y = e.y; (*p).vel.y = -abs((*p).vel.y) * u.wallBounce; }
 }
 
 fn hash01(x: u32) -> f32 {
@@ -168,7 +172,11 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
 
   if (u.steer > 0.5 && p.landed > 0.5) {
     // ---- steer: physarum-style flight + damped landing
-    let switchAt = 0.1 + p.stagger * u.stagger;
+    // Departure order: a sweep by where the particle rests in the scene it's leaving.
+    // Forward (scrolling down) the lowest leave first; going back, the highest.
+    var fy = clamp(targetOf(i, ${scene("a")}).y / u.vh, 0.0, 1.0);
+    if (u.bIndex >= u.aIndex) { fy = 1.0 - fy; }
+    let switchAt = 0.1 + 0.4 * u.stagger * (fy * 0.85 + (p.stagger / 0.4) * 0.15);
     var T: vec4f;
     var hi: f32;
     var shift: vec2f;
@@ -631,7 +639,7 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
       densBufs = [0, 1].map(() => device.createBuffer({ size: gridW * gridH * 4, usage: U.STORAGE | U.COPY_DST }));
       bindGroups();
     }
-    SU.set("walls", wl.enabled ? 1 : 0); SU.set("wallMargin", wl.margin); SU.set("wallBounce", wl.bounce);
+    SU.set("walls", wl.enabled ? 1 : 0); SU.set("wallMargin", wl.margin); SU.set("wallBounce", wl.bounce); SU.set("wallK", wl.stiffness);
     SU.set("crowd", cw.enabled ? cw.strength : 0); SU.set("crowdDist", cw.distance); SU.set("cellPx", cw.cellPx);
     SU.set("gridW", gridW); SU.set("gridH", gridH);
     device.queue.writeBuffer(stepBuf, 0, SU.data);
