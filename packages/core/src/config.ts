@@ -159,7 +159,13 @@ export type LookConfig = {
 };
 
 export type InteractionConfig = {
-  mouse: { mode: "repel" | "attract" | "off"; radius: number; strength: number };
+  mouse: {
+    mode: "repel" | "attract" | "off";
+    radius: number;
+    strength: number;
+    /** While the button (or a touch) is held: radius and strength multiply up, and nearby particles churn in the noise field. Ramps in and out over ~0.2s. */
+    press: { radius: number; strength: number; noise: number };
+  };
 };
 
 export type StageConfig = {
@@ -203,7 +209,7 @@ export const DEFAULTS: Omit<Effect, "scenes"> = {
     ridged: true, sharpness: 3, seed: 7, drift: 0.15, live: false, liveSpeed: 0.004,
   },
   look: { ink: "#1a1a1a", theme: "none", size: 1, streak: 1, streakTaper: 0.7, streakFade: 0.3, restStreak: 0 },
-  interaction: { mouse: { mode: "repel", radius: 70, strength: 0.15 } },
+  interaction: { mouse: { mode: "repel", radius: 70, strength: 0.15, press: { radius: 1.6, strength: 3, noise: 0.6 } } },
   stage: { zIndex: 0 },
 };
 

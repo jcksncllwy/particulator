@@ -151,6 +151,9 @@ export const MOTION: { title: string; specs: Spec[]; open?: boolean }[] = [
       { kind: "select", path: "interaction.mouse.mode", options: ["repel", "attract", "off"] },
       { kind: "range", path: "interaction.mouse.radius", min: 10, max: 300, step: 1 },
       { kind: "range", path: "interaction.mouse.strength", min: 0, max: 1, step: 0.005 },
+      { kind: "range", path: "interaction.mouse.press.radius", min: 1, max: 4, step: 0.05, help: "radius × while pressed" },
+      { kind: "range", path: "interaction.mouse.press.strength", min: 1, max: 10, step: 0.1, help: "strength × while pressed" },
+      { kind: "range", path: "interaction.mouse.press.noise", min: 0, max: 3, step: 0.05, help: "swirl while pressed" },
     ],
   },
 ];

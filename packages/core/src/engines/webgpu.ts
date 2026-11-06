@@ -21,7 +21,7 @@ const STEP_FIELDS = [
   ...SCENE_FIELDS.map((f) => `a${f}`), ...SCENE_FIELDS.map((f) => `b${f}`),
   "aShiftX", "aShiftY", "bShiftX", "bShiftY",
   "restFollow", "restNoise", "walls", "wallMargin",
-  "wallBounce", "crowd", "crowdDist", "cellPx", "gridW", "gridH", "wallK", "wallRange", "blur", "wallStrength", "wallCruise", "pad2",
+  "wallBounce", "crowd", "crowdDist", "cellPx", "gridW", "gridH", "wallK", "wallRange", "blur", "wallStrength", "wallCruise", "mouseNoise",
 ] as const;
 const RENDER_FIELDS = [
   "vw", "vh", "dpr", "alpha", "inkR", "inkG", "inkB", "size",
@@ -200,7 +200,13 @@ fn repel(p: ptr<function, Particle>) {
   let m = (*p).pos - vec2f(u.mouseX, u.mouseY);
   let dist = length(m);
   if (dist < u.mouseRadius && dist > 0.0) {
-    (*p).vel += m / dist * ((1.0 - dist / u.mouseRadius) * u.mouseStrength * u.mouseSign);
+    let f = 1.0 - dist / u.mouseRadius;
+    (*p).vel += m / dist * (f * u.mouseStrength * u.mouseSign);
+    // Pressed: churn in the noise field (a direction from the field, turning over time).
+    if (u.mouseNoise > 0.0) {
+      let a = sample((*p).pos) * 12.566 + u.time * 2.0;
+      (*p).vel += vec2f(cos(a), sin(a)) * (f * u.mouseNoise);
+    }
   }
 }
 
@@ -688,7 +694,7 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
     SU.set("vw", u.vw); SU.set("vh", u.vh); SU.set("count", u.count); SU.set("time", u.time);
     SU.set("t", u.t); SU.set("eased", u.eased); SU.set("drift", u.drift); SU.set("steer", u.steer ? 1 : 0);
     SU.set("mouseX", u.mouse?.x ?? 0); SU.set("mouseY", u.mouse?.y ?? 0); SU.set("mouseSign", u.mouse ? u.mouseSign : 0);
-    SU.set("mouseRadius", u.mouseRadius); SU.set("mouseStrength", u.mouseStrength);
+    SU.set("mouseRadius", u.mouseRadius); SU.set("mouseStrength", u.mouseStrength); SU.set("mouseNoise", u.mouseNoise);
     SU.set("aShiftX", u.shiftA.x); SU.set("aShiftY", u.shiftA.y); SU.set("bShiftX", u.shiftB.x); SU.set("bShiftY", u.shiftB.y);
     SU.set("texOffX", u.texOffX % texN); SU.set("texOffY", u.texOffY % texN); SU.set("texN", texN); SU.set("texelPx", f.texelPx);
     for (const k of ["attract", "arriveK", "settleRadius", "damping", "homing", "accel", "maxSpeed", "speedVar", "stagger",

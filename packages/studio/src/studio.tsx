@@ -71,6 +71,7 @@ export async function mountStudio(stage: Stage, opts: StudioOptions = {}): Promi
   const store = createStore(stage, storage);
 
   const host = document.createElement("particulator-studio");
+  host.setAttribute("data-particulator-ignore", ""); // presses on the studio don't disrupt the particles
   host.style.cssText = "position:fixed;inset:0;z-index:2147483000;pointer-events:none;";
   const shadow = host.attachShadow({ mode: "open" });
   const style = document.createElement("style");

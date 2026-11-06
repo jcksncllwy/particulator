@@ -149,8 +149,18 @@ export function createStage(opts: StageOptions): Stage {
   let mouse: { x: number; y: number } | null = null;
   const onMove = (e: MouseEvent) => { mouse = { x: e.clientX, y: e.clientY }; };
   const onLeave = () => { mouse = null; };
+  // Pressing disrupts more. Presses on UI that opts out (the studio's panels and handles) don't count.
+  let pressed = false, pressLevel = 0;
+  const optedOut = (e: Event) => e.composedPath().some((t) => t instanceof Element && t.hasAttribute("data-particulator-ignore"));
+  const onDown = (e: PointerEvent) => { if (optedOut(e)) return; pressed = true; mouse = { x: e.clientX, y: e.clientY }; };
+  const onUp = (e: PointerEvent) => { pressed = false; if (e.pointerType !== "mouse") mouse = null; }; // a lifted finger isn't hovering
+  const onPointerMove = (e: PointerEvent) => { if (e.pointerType !== "mouse" && pressed) mouse = { x: e.clientX, y: e.clientY }; };
   const onResize = () => engine?.resize(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1);
   window.addEventListener("mousemove", onMove);
+  window.addEventListener("pointerdown", onDown);
+  window.addEventListener("pointerup", onUp);
+  window.addEventListener("pointercancel", onUp);
+  window.addEventListener("pointermove", onPointerMove);
   document.addEventListener("mouseleave", onLeave);
   window.addEventListener("resize", onResize);
   const dark = typeof matchMedia !== "undefined" ? matchMedia("(prefers-color-scheme: dark)") : null;
@@ -258,6 +268,8 @@ export function createStage(opts: StageOptions): Stage {
     let noise = 0;
     while (acc >= STEP_MS && steps < MAX_STEPS) {
       time += 0.016;
+      pressLevel += ((pressed ? 1 : 0) - pressLevel) * 0.08;
+      const pl = pressLevel < 0.001 ? 0 : pressLevel, pr = m.press ?? { radius: 1, strength: 1, noise: 0 };
       texOffX += effect.field.drift; texOffY += effect.field.drift * 0.37;
       if (effect.field.live) texZ += effect.field.liveSpeed;
       engine.step({
@@ -265,7 +277,8 @@ export function createStage(opts: StageOptions): Stage {
         shiftA: steps === 0 ? shiftOf(A) : zero, shiftB: steps === 0 ? shiftOf(B) : zero,
         steer: effect.motion.preset === "steer",
         mouse, mouseSign: m.mode === "repel" ? 1 : m.mode === "attract" ? -1 : 0,
-        mouseRadius: m.radius, mouseStrength: m.strength,
+        mouseRadius: m.radius * (1 + (pr.radius - 1) * pl), mouseStrength: m.strength * (1 + (pr.strength - 1) * pl),
+        mouseNoise: pr.noise * pl,
         texOffX, texOffY, texZ, liveNoise: effect.field.live,
         steerParams: effect.motion.steer, field: effect.field,
         walls: effect.motion.walls, crowd: effect.motion.crowd,
@@ -375,6 +388,10 @@ export function createStage(opts: StageOptions): Stage {
       engine = null;
       canvas.remove();
       window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      window.removeEventListener("pointermove", onPointerMove);
       document.removeEventListener("mouseleave", onLeave);
       window.removeEventListener("resize", onResize);
     },

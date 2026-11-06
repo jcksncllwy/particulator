@@ -46,7 +46,7 @@ Everything an effect is, as one serializable object (`effect.json`). Only
 | `motion.crowd` | density-field pressure between displaced particles (more than `distance` px from their rest spot), so swarms and edge piles spread out. Resting particles are never pushed |
 | `field` | the steering noise field (texture params, `drift`, `live` 3D noise) |
 | `look` | `ink` (colour, or `{ light, dark }` with `theme`: `class:dark` / `media`), `size`, streaks (`streak`, `streakTaper`, `streakFade`; `restStreak` scales them for resting particles, 0 by default) |
-| `interaction.mouse` | `repel` / `attract` / `off`, radius, strength |
+| `interaction.mouse` | `repel` / `attract` / `off`, radius, strength; `press` multiplies radius and strength and adds noise-field swirl while the button or a touch is held |
 | `particles.count` | particle pool size (30k default) |
 
 ## Stage API

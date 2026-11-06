@@ -96,7 +96,15 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
       const repel = () => {
         if (!mouse || ms === 0) return;
         const mx = cx - mouse.x, my = cy - mouse.y, dist = Math.sqrt(mx * mx + my * my);
-        if (dist < mr && dist > 0) { const f = (1 - dist / mr) * ms; vx += (mx / dist) * f; vy += (my / dist) * f; }
+        if (dist < mr && dist > 0) {
+          const f = 1 - dist / mr;
+          vx += (mx / dist) * f * ms; vy += (my / dist) * f * ms;
+          // Pressed: churn in the noise field (a direction from the field, turning over time).
+          if (u.mouseNoise > 0) {
+            const a = sample(cx, cy) * 12.566 + u.time * 2;
+            vx += Math.cos(a) * f * u.mouseNoise; vy += Math.sin(a) * f * u.mouseNoise;
+          }
+        }
       };
 
       if (u.steer && landed) {
