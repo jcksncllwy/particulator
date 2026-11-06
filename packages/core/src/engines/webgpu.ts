@@ -21,7 +21,7 @@ const STEP_FIELDS = [
   ...SCENE_FIELDS.map((f) => `a${f}`), ...SCENE_FIELDS.map((f) => `b${f}`),
   "aShiftX", "aShiftY", "bShiftX", "bShiftY",
   "restFollow", "restNoise", "walls", "wallMargin",
-  "wallBounce", "crowd", "crowdDist", "cellPx", "gridW", "gridH", "wallK", "wallRange", "blur", "wallStrength", "pad1", "pad2",
+  "wallBounce", "crowd", "crowdDist", "cellPx", "gridW", "gridH", "wallK", "wallRange", "blur", "wallStrength", "wallCruise", "pad2",
 ] as const;
 const RENDER_FIELDS = [
   "vw", "vh", "dpr", "alpha", "inkR", "inkG", "inkB", "size",
@@ -247,7 +247,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     let dir = (aim - p.pos) / aimDist;
     let wn = wallIn(p.pos);
     let topSpeed = u.maxSpeed * (1.0 + u.speedVar * p.jitter);
-    let desired = select(min(topSpeed, aimDist * u.arriveK), topSpeed, unreachable);
+    let desired = select(min(topSpeed, aimDist * u.arriveK), topSpeed, unreachable && u.wallCruise > 0.5);
     var far = 0.0;
     if (unreachable) { far = 1.0; }
     else if (flying && dist > u.settleRadius) {
@@ -709,7 +709,7 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
       densBufs = [0, 1].map(() => device.createBuffer({ size: gridW * gridH * 4, usage: U.STORAGE | U.COPY_DST }));
       bindGroups();
     }
-    SU.set("walls", wl.enabled ? 1 : 0); SU.set("wallMargin", wl.margin); SU.set("wallBounce", wl.bounce); SU.set("wallK", wl.stiffness); SU.set("wallRange", wl.range); SU.set("wallStrength", wl.strength); SU.set("blur", cw.blur ? 1 : 0);
+    SU.set("walls", wl.enabled ? 1 : 0); SU.set("wallMargin", wl.margin); SU.set("wallBounce", wl.bounce); SU.set("wallK", wl.stiffness); SU.set("wallRange", wl.range); SU.set("wallStrength", wl.strength); SU.set("wallCruise", wl.cruise ? 1 : 0); SU.set("blur", cw.blur ? 1 : 0);
     SU.set("crowd", cw.enabled ? cw.strength : 0); SU.set("crowdDist", cw.distance); SU.set("cellPx", cw.cellPx);
     SU.set("gridW", gridW); SU.set("gridH", gridH);
     device.queue.writeBuffer(stepBuf, 0, SU.data);

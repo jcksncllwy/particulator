@@ -142,7 +142,7 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
         const flying = s[o + P.landed] > 1.5;
         const ux = gx / aimD, uy = gy / aimD;
         const topSpeed = sp.maxSpeed * (1 + sp.speedVar * s[o + P.jitter]);
-        const desired = unreachable ? topSpeed : Math.min(topSpeed, aimD * sp.arriveK);
+        const desired = unreachable && wl.cruise ? topSpeed : Math.min(topSpeed, aimD * sp.arriveK);
         const far = unreachable ? 1 : !flying || d <= sp.settleRadius ? 0 : sp.settleRadius > 0 ? Math.min(1, (d - sp.settleRadius) / sp.settleRadius) : 1;
         let nvx = vx + (ux * desired - vx) * sp.attract;
         let nvy = vy + (uy * desired - vy) * sp.attract;
