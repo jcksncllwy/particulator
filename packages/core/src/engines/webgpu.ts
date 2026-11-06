@@ -297,7 +297,9 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     p.pos += p.vel;
     walls(&p);
     if (crowdW > 0.0) { splat(p.pos, crowdW); }
-    if (flying && length(T.xy + d - p.pos) < max(u.settleRadius, 4.0)) { p.landed = 1.0; }
+    // Land inside settleRadius, and well inside the refly distance so landing doesn't immediately re-fly.
+    let landAt = select(u.settleRadius, min(u.settleRadius, u.reflyDistance * 0.5), u.reflyDistance > 0.0);
+    if (flying && length(T.xy + d - p.pos) < max(landAt, 4.0)) { p.landed = 1.0; }
     p.size += (T.z - p.size) * 0.1;
     p.opacity += (T.w - p.opacity) * 0.1;
   } else {

@@ -75,8 +75,8 @@ export type SteerParams = {
   /** Spread of departure times across a transition (0 = all at once). Particles leave in a sweep along the direction of travel: lowest first when moving forward (scrolling down), highest first going back. */
   stagger: number;
   sensorDist: number; sensorAngle: number; turnGain: number; maxTurn: number; alignMin: number;
-  /** A resting particle this far (px) from its rest spot takes flight again (0 = never). */
-  reflyDistance: number;
+  /** A resting particle this far (px) from its rest spot takes flight again (0 = never; "margin" = walls.margin when walls are on, else never). */
+  reflyDistance: number | "margin";
   /** Homing turn scales with distance to target: homing × (dist / 300px)^homingFalloff. 0 = constant; negative = weaker far away (wide loops); positive = stronger. */
   homingFalloff: number;
   /** Resting particles: 0 = spring after their scene when it moves (lag, springy), 1 = ride along rigidly. Default 0.75. */
@@ -186,7 +186,7 @@ export const DEFAULTS: Omit<Effect, "scenes"> = {
       attract: 0.2, arriveK: 0.05, settleRadius: 40, damping: 1,
       homing: 0.07, accel: 0.15, maxSpeed: 14, speedVar: 0.3, stagger: 1,
       sensorDist: 28, sensorAngle: 0.19, turnGain: 0.8, maxTurn: 0.3, alignMin: 0,
-      restFollow: 0.75, restNoise: 0.25, reflyDistance: 80, homingFalloff: 0,
+      restFollow: 0.75, restNoise: 0.25, reflyDistance: "margin", homingFalloff: 0,
     },
     walls: { enabled: false, margin: 15, stiffness: 0.08, bounce: 0.3 },
     crowd: { enabled: false, strength: 4, distance: 30, cellPx: 6, blur: true },

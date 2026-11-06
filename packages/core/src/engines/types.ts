@@ -21,7 +21,7 @@ export type StepInputs = {
   texOffX: number; texOffY: number; // field scroll (texels)
   texZ: number; // live-noise slice
   liveNoise: boolean;
-  steerParams: SteerParams;
+  steerParams: SteerParams & { reflyDistance: number }; // "margin" resolved
   walls: WallsConfig;
   crowd: CrowdConfig;
   field: FieldConfig;

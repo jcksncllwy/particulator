@@ -188,7 +188,9 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
         cx += vx; cy += vy;
         walls();
         if (crowdW > 0) splat(cx, cy, crowdW);
-        if (flying && Math.hypot(ta[0] + dx - cx, ta[1] + dy - cy) < Math.max(sp.settleRadius, 4)) s[o + P.landed] = 1;
+        // Land inside settleRadius, and well inside the refly distance so landing doesn't immediately re-fly.
+        const landAt = sp.reflyDistance > 0 ? Math.min(sp.settleRadius, sp.reflyDistance * 0.5) : sp.settleRadius;
+        if (flying && Math.hypot(ta[0] + dx - cx, ta[1] + dy - cy) < Math.max(landAt, 4)) s[o + P.landed] = 1;
         s[o + P.size] += (ta[2] - s[o + P.size]) * 0.1;
         s[o + P.opacity] += (ta[3] - s[o + P.opacity]) * 0.1;
       } else {

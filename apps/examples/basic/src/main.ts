@@ -50,7 +50,7 @@ stage.ready.then(() => {
     input.addEventListener("change", () => void stage.update(patch(path, input.checked)));
   }
   for (const [path, min, max, step] of SLIDERS) {
-    const id = path.replace(/\./g, "-"), v = get(path);
+    const id = path.replace(/\./g, "-"), raw = get(path), v = typeof raw === "number" ? raw : stage.effect.motion.walls.margin;
     tune.insertAdjacentHTML("beforeend", `<label for="${id}">${path.split(".").slice(-2).join(".")}</label><input id="${id}" type="range" min="${min}" max="${max}" step="${step}" value="${v}"><output id="o-${id}">${v}</output>`);
     const input = document.getElementById(id) as HTMLInputElement;
     input.addEventListener("input", () => {
