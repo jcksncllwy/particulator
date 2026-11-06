@@ -115,8 +115,7 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
         }
         const gx = ta[0] + dx - cx, gy = ta[1] + dy - cy;
         const d = Math.sqrt(gx * gx + gy * gy) || 1e-6;
-        // How far past the soft-wall margin we are, pointing inward. Pushed by a wall far
-        // enough from its rest spot: take flight again and join the swarm.
+        // How far past the soft-wall margin we are, pointing inward.
         let wnx = 0, wny = 0;
         if (wl.enabled) {
           const lo = wl.margin, hx = u.vw - wl.margin, hy = u.vh - wl.margin;
@@ -124,7 +123,8 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
           wny = cy < lo ? lo - cy : cy > hy ? hy - cy : 0;
         }
         const inWall = wnx !== 0 || wny !== 0;
-        if (s[o + P.landed] < 1.5 && inWall && d > wl.reflyDistance) s[o + P.landed] = 2;
+        // Knocked far enough from its rest spot (wall, cursor, scroll lag): take flight again.
+        if (s[o + P.landed] < 1.5 && sp.reflyDistance > 0 && d > sp.reflyDistance) s[o + P.landed] = 2;
         const flying = s[o + P.landed] > 1.5;
         const ux = gx / d, uy = gy / d;
         const topSpeed = sp.maxSpeed * (1 + sp.speedVar * s[o + P.jitter]);
@@ -137,7 +137,8 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
           const hx = spd > 0.05 ? vx / spd : ux, hy = spd > 0.05 ? vy / spd : uy;
           const align = hx * ux + hy * uy;
           const cross = hx * uy - hy * ux;
-          let turn = Math.max(-sp.homing, Math.min(sp.homing, Math.atan2(cross, align)));
+          const hm = Math.min(0.5, sp.homing * Math.pow(Math.max(d, 1) / 300, sp.homingFalloff));
+          let turn = Math.max(-hm, Math.min(hm, Math.atan2(cross, align)));
           const gate = Math.min(1, Math.max(0, (align - sp.alignMin) / (1 - sp.alignMin)));
           if (gate > 0) {
             const L = sample(cx + (hx * ca - hy * sa) * sd, cy + (hx * sa + hy * ca) * sd);

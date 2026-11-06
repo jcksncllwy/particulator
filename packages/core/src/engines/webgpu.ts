@@ -21,7 +21,7 @@ const STEP_FIELDS = [
   ...SCENE_FIELDS.map((f) => `a${f}`), ...SCENE_FIELDS.map((f) => `b${f}`),
   "aShiftX", "aShiftY", "bShiftX", "bShiftY",
   "restFollow", "restNoise", "walls", "wallMargin",
-  "wallBounce", "crowd", "crowdDist", "cellPx", "gridW", "gridH", "wallK", "reflyDist", "blur", "pad0", "pad1", "pad2",
+  "wallBounce", "crowd", "crowdDist", "cellPx", "gridW", "gridH", "wallK", "reflyDistance", "blur", "homingFalloff", "pad1", "pad2",
 ] as const;
 const RENDER_FIELDS = [
   "vw", "vh", "dpr", "alpha", "inkR", "inkG", "inkB", "size",
@@ -223,9 +223,9 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     if (p.landed < 1.5) { p.pos += shift * u.restFollow; p.prev += shift * u.restFollow; }
     let g = T.xy + d - p.pos;
     let dist = max(length(g), 1e-6);
-    // Pushed by a wall far enough from its rest spot: take flight again and join the swarm.
+    // Knocked far enough from its rest spot (wall, cursor, scroll lag): take flight again.
     let wn = wallIn(p.pos);
-    if (p.landed < 1.5 && dot(wn, wn) > 0.0 && dist > u.reflyDist) { p.landed = 2.0; }
+    if (p.landed < 1.5 && u.reflyDistance > 0.0 && dist > u.reflyDistance) { p.landed = 2.0; }
     let flying = p.landed > 1.5;
     let dir = g / dist;
     let topSpeed = u.maxSpeed * (1.0 + u.speedVar * p.jitter);
@@ -241,7 +241,8 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
       if (sp > 0.05) { h = p.vel / sp; }
       let al = dot(h, dir);
       let crs = h.x * dir.y - h.y * dir.x;
-      var turn = clamp(atan2(crs, al), -u.homing, u.homing);
+      let hm = min(0.5, u.homing * pow(max(dist, 1.0) / 300.0, u.homingFalloff));
+      var turn = clamp(atan2(crs, al), -hm, hm);
       let gate = clamp((al - u.alignMin) / (1.0 - u.alignMin), 0.0, 1.0);
       if (gate > 0.0) {
         let ca = cos(u.sensorAngle);
@@ -672,7 +673,7 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
     SU.set("aShiftX", u.shiftA.x); SU.set("aShiftY", u.shiftA.y); SU.set("bShiftX", u.shiftB.x); SU.set("bShiftY", u.shiftB.y);
     SU.set("texOffX", u.texOffX % texN); SU.set("texOffY", u.texOffY % texN); SU.set("texN", texN); SU.set("texelPx", f.texelPx);
     for (const k of ["attract", "arriveK", "settleRadius", "damping", "homing", "accel", "maxSpeed", "speedVar", "stagger",
-      "sensorDist", "sensorAngle", "turnGain", "maxTurn", "alignMin", "restFollow", "restNoise"] as const) SU.set(k, sp[k]);
+      "sensorDist", "sensorAngle", "turnGain", "maxTurn", "alignMin", "restFollow", "restNoise", "reflyDistance", "homingFalloff"] as const) SU.set(k, sp[k]);
     SU.set("zTime", u.texZ); SU.set("features", f.features); SU.set("octaves", f.octaves); SU.set("lacunarity", f.lacunarity);
     SU.set("gain", f.gain); SU.set("ridged", f.ridged ? 1 : 0); SU.set("sharpness", f.sharpness);
     SU.set("normMin", normMin); SU.set("normMax", normMax);
@@ -689,7 +690,7 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
       densBufs = [0, 1].map(() => device.createBuffer({ size: gridW * gridH * 4, usage: U.STORAGE | U.COPY_DST }));
       bindGroups();
     }
-    SU.set("walls", wl.enabled ? 1 : 0); SU.set("wallMargin", wl.margin); SU.set("wallBounce", wl.bounce); SU.set("wallK", wl.stiffness); SU.set("reflyDist", wl.reflyDistance); SU.set("blur", cw.blur ? 1 : 0);
+    SU.set("walls", wl.enabled ? 1 : 0); SU.set("wallMargin", wl.margin); SU.set("wallBounce", wl.bounce); SU.set("wallK", wl.stiffness); SU.set("blur", cw.blur ? 1 : 0);
     SU.set("crowd", cw.enabled ? cw.strength : 0); SU.set("crowdDist", cw.distance); SU.set("cellPx", cw.cellPx);
     SU.set("gridW", gridW); SU.set("gridH", gridH);
     device.queue.writeBuffer(stepBuf, 0, SU.data);
