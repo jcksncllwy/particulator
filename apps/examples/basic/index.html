@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Particulator · basic example</title>
+  <style>
+    :root { --paper: #f3efe6; --ink: #1a1a1a; }
+    html.dark { --paper: #161616; --ink: #f5f1e8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.5 ui-sans-serif, system-ui, sans-serif; }
+    section { min-height: 100vh; display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 4rem; padding: 0 8vw; }
+    section:nth-child(even) .copy { order: 2; }
+    h2 { font: italic 700 clamp(2.5rem, 6vw, 5rem)/1 Georgia, serif; margin: 0 0 1rem; }
+    .art { aspect-ratio: 1; width: 100%; max-width: 520px; justify-self: center; outline: 1px dashed transparent; }
+    body.debug .art { outline-color: color-mix(in srgb, var(--ink) 30%, transparent); }
+    #hud { position: fixed; left: 12px; bottom: 12px; z-index: 10; font: 12px/1.4 ui-monospace, monospace; background: color-mix(in srgb, var(--paper) 85%, transparent); padding: 6px 8px; border-radius: 6px; }
+    #hud button { font: inherit; }
+  </style>
+</head>
+<body>
+  <section>
+    <div class="copy"><h2>Sphere</h2><p>An image stippled into 30,000 dots in the browser at load time, placed inside the dashed box on the right.</p></div>
+    <div class="art" data-particulator="sphere"></div>
+  </section>
+  <section>
+    <div class="copy"><h2>Glyph</h2><p>Scroll: the particles fly to the next element. Placement follows the element, so it survives any layout or resize.</p></div>
+    <div class="art" data-particulator="glyph"></div>
+  </section>
+  <section>
+    <div class="copy"><h2>Star</h2><p>Press <kbd>F</kbd> to show the steering field, <kbd>D</kbd> to outline the boxes, <kbd>T</kbd> for dark mode.</p></div>
+    <div class="art" data-particulator="star"></div>
+  </section>
+  <div id="hud"></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

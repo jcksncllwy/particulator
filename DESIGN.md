@@ -70,17 +70,20 @@ around: production pages load only `core`/`embed`.
 Chris's dot clouds were made offline. For designers the conversion has to be
 live, and tweaking it is half the creative work.
 
-- **Sampling:** weighted blue-noise stippling driven by brightness (fast,
-  deterministic, seeded), with an optional weighted-Voronoi relaxation pass
-  for the "hand-stippled" look.
+- **Sampling:** density-weighted rejection sampling on an R2 sequence, then a
+  short local-repulsion pass (fast, seeded, deterministic per browser). An
+  optional weighted-Voronoi relaxation pass for the "hand-stippled" look comes
+  later.
 - **Controls:** dot count, size range, size mapping (by brightness or uniform),
   contrast/gamma, threshold, invert, edge emphasis (a Sobel weight added to
   the density), background removal (alpha or chroma-key), crop.
 - **Colour:** each dot stores its sampled colour. The look decides whether to
   use it.
-- **Output:** dots in **normalized local space** (0..1, aspect stored),
-  `{x, y, size, opacity, rgb}`, packed binary. This extends the current
-  6-byte format with colour.
+- **Output:** dots in source-image pixels, `{x, y, size, opacity}` packed as
+  floats, plus optional RGB bytes (`DotCloud` in `packages/dotter`). The
+  runtime converts them to local space (units of image height, centered) on
+  load. Sizes are in working-resolution pixels, so large photos behave like
+  1024px images.
 - **Inputs:** PNG/JPG/WebP and SVG. Text, through a font, comes later.
 - Runs in a Web Worker so the editor stays responsive while sliders move.
 - **Runs at load time in production too.** Effects ship source images and
