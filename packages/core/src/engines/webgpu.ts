@@ -21,7 +21,7 @@ const STEP_FIELDS = [
   ...SCENE_FIELDS.map((f) => `a${f}`), ...SCENE_FIELDS.map((f) => `b${f}`),
   "aShiftX", "aShiftY", "bShiftX", "bShiftY",
   "restFollow", "restNoise", "walls", "wallMargin",
-  "wallBounce", "crowd", "crowdDist", "cellPx", "gridW", "gridH", "wallK", "reflyDistance", "blur", "homingFalloff", "pad1", "pad2",
+  "wallBounce", "crowd", "crowdDist", "cellPx", "gridW", "gridH", "wallK", "wallRange", "blur", "wallStrength", "pad1", "pad2",
 ] as const;
 const RENDER_FIELDS = [
   "vw", "vh", "dpr", "alpha", "inkR", "inkG", "inkB", "size",
@@ -143,8 +143,17 @@ fn wallIn(q: vec2f) -> vec2f {
   let hi = vec2f(u.vw, u.vh) - u.wallMargin;
   return max(lo - q, vec2f(0.0)) - max(q - hi, vec2f(0.0));
 }
-fn walls(p: ptr<function, Particle>) {
+// Smooth push away from the edges for flying particles: 0 at wallRange px, wallStrength at the edge.
+fn edgePush(d: f32) -> f32 {
+  let k = max(0.0, 1.0 - d / max(u.wallRange, 1.0));
+  return u.wallStrength * k * k;
+}
+fn walls(p: ptr<function, Particle>, flying: bool) {
   if (u.walls < 0.5) { return; }
+  if (flying) {
+    let q = (*p).pos;
+    (*p).vel += vec2f(edgePush(q.x) - edgePush(u.vw - q.x), edgePush(q.y) - edgePush(u.vh - q.y));
+  }
   // Soft wall: a spring proportional to how far past the margin the particle is.
   (*p).vel += wallIn((*p).pos) * u.wallK;
   // Hard stop at the viewport edge itself.
@@ -223,9 +232,9 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     if (p.landed < 1.5) { p.pos += shift * u.restFollow; p.prev += shift * u.restFollow; }
     let g = T.xy + d - p.pos;
     let dist = max(length(g), 1e-6);
-    // Knocked far enough from its rest spot (wall, cursor, scroll lag): take flight again.
+    // Pushed off its rest spot by a wall: take flight again and join the swarm.
     let wn = wallIn(p.pos);
-    if (p.landed < 1.5 && u.reflyDistance > 0.0 && dist > u.reflyDistance) { p.landed = 2.0; }
+    if (p.landed < 1.5 && dot(wn, wn) > 0.0 && dist > 8.0) { p.landed = 2.0; }
     let flying = p.landed > 1.5;
     let dir = g / dist;
     let topSpeed = u.maxSpeed * (1.0 + u.speedVar * p.jitter);
@@ -241,8 +250,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
       if (sp > 0.05) { h = p.vel / sp; }
       let al = dot(h, dir);
       let crs = h.x * dir.y - h.y * dir.x;
-      let hm = min(0.5, u.homing * pow(max(dist, 1.0) / 300.0, u.homingFalloff));
-      var turn = clamp(atan2(crs, al), -hm, hm);
+      var turn = clamp(atan2(crs, al), -u.homing, u.homing);
       let gate = clamp((al - u.alignMin) / (1.0 - u.alignMin), 0.0, 1.0);
       if (gate > 0.0) {
         let ca = cos(u.sensorAngle);
@@ -295,11 +303,10 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     repel(&p);
     p.vel *= u.damping;
     p.pos += p.vel;
-    walls(&p);
+    walls(&p, flying);
     if (crowdW > 0.0) { splat(p.pos, crowdW); }
     // Land inside settleRadius, and well inside the refly distance so landing doesn't immediately re-fly.
-    let landAt = select(u.settleRadius, min(u.settleRadius, u.reflyDistance * 0.5), u.reflyDistance > 0.0);
-    if (flying && length(T.xy + d - p.pos) < max(landAt, 4.0)) { p.landed = 1.0; }
+    if (flying && length(T.xy + d - p.pos) < max(u.settleRadius, 4.0)) { p.landed = 1.0; }
     p.size += (T.z - p.size) * 0.1;
     p.opacity += (T.w - p.opacity) * 0.1;
   } else {
@@ -309,7 +316,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     p.vel *= 0.9;
     let k = select(p.speed, 0.12, u.t > 0.005);
     p.pos += (T.xy + d - p.pos) * k + p.vel;
-    if (p.landed > 0.5) { walls(&p); }
+    if (p.landed > 0.5) { walls(&p, false); }
     p.size += (T.z - p.size) * k;
     p.opacity += (T.w - p.opacity) * k;
     if (p.landed < 0.5 && all(abs(T.xy + d - p.pos) < vec2f(2.0))) {
@@ -675,7 +682,7 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
     SU.set("aShiftX", u.shiftA.x); SU.set("aShiftY", u.shiftA.y); SU.set("bShiftX", u.shiftB.x); SU.set("bShiftY", u.shiftB.y);
     SU.set("texOffX", u.texOffX % texN); SU.set("texOffY", u.texOffY % texN); SU.set("texN", texN); SU.set("texelPx", f.texelPx);
     for (const k of ["attract", "arriveK", "settleRadius", "damping", "homing", "accel", "maxSpeed", "speedVar", "stagger",
-      "sensorDist", "sensorAngle", "turnGain", "maxTurn", "alignMin", "restFollow", "restNoise", "reflyDistance", "homingFalloff"] as const) SU.set(k, sp[k]);
+      "sensorDist", "sensorAngle", "turnGain", "maxTurn", "alignMin", "restFollow", "restNoise"] as const) SU.set(k, sp[k]);
     SU.set("zTime", u.texZ); SU.set("features", f.features); SU.set("octaves", f.octaves); SU.set("lacunarity", f.lacunarity);
     SU.set("gain", f.gain); SU.set("ridged", f.ridged ? 1 : 0); SU.set("sharpness", f.sharpness);
     SU.set("normMin", normMin); SU.set("normMax", normMax);
@@ -692,7 +699,7 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
       densBufs = [0, 1].map(() => device.createBuffer({ size: gridW * gridH * 4, usage: U.STORAGE | U.COPY_DST }));
       bindGroups();
     }
-    SU.set("walls", wl.enabled ? 1 : 0); SU.set("wallMargin", wl.margin); SU.set("wallBounce", wl.bounce); SU.set("wallK", wl.stiffness); SU.set("blur", cw.blur ? 1 : 0);
+    SU.set("walls", wl.enabled ? 1 : 0); SU.set("wallMargin", wl.margin); SU.set("wallBounce", wl.bounce); SU.set("wallK", wl.stiffness); SU.set("wallRange", wl.range); SU.set("wallStrength", wl.strength); SU.set("blur", cw.blur ? 1 : 0);
     SU.set("crowd", cw.enabled ? cw.strength : 0); SU.set("crowdDist", cw.distance); SU.set("cellPx", cw.cellPx);
     SU.set("gridW", gridW); SU.set("gridH", gridH);
     device.queue.writeBuffer(stepBuf, 0, SU.data);

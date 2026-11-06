@@ -215,8 +215,6 @@ export function createStage(opts: StageOptions): Stage {
       return c ? { x: S.cx - c.x, y: S.cy - c.y } : { x: 0, y: 0 };
     };
     const zero = { x: 0, y: 0 };
-    const sp = effect.motion.steer;
-    const steerParams = { ...sp, reflyDistance: sp.reflyDistance !== "margin" ? sp.reflyDistance : effect.motion.walls.enabled ? effect.motion.walls.margin : 0 };
     let steps = 0;
     const t0 = performance.now();
     let noise = 0;
@@ -231,7 +229,7 @@ export function createStage(opts: StageOptions): Stage {
         mouse, mouseSign: m.mode === "repel" ? 1 : m.mode === "attract" ? -1 : 0,
         mouseRadius: m.radius, mouseStrength: m.strength,
         texOffX, texOffY, texZ, liveNoise: effect.field.live,
-        steerParams, field: effect.field,
+        steerParams: effect.motion.steer, field: effect.field,
         walls: effect.motion.walls, crowd: effect.motion.crowd,
       });
       noise += engine.timings().noiseMs;

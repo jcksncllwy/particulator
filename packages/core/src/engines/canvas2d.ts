@@ -75,8 +75,13 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
       s[o + P.lx] = cx; s[o + P.ly] = cy;
       const landed = s[o + P.landed] > 0.5;
 
-      const walls = () => {
+      const walls = (flying: boolean) => {
         if (!wl.enabled) return;
+        if (flying) {
+          // Smooth push away from the edges: 0 at range px, strength at the edge.
+          const push = (dd: number) => { const k = Math.max(0, 1 - dd / Math.max(wl.range, 1)); return wl.strength * k * k; };
+          vx += push(cx) - push(u.vw - cx); vy += push(cy) - push(u.vh - cy);
+        }
         // Soft wall: a spring proportional to how far past the margin the particle is.
         const lo = wl.margin, hx = u.vw - wl.margin, hy = u.vh - wl.margin, k = wl.stiffness;
         if (cx < lo) vx += (lo - cx) * k; else if (cx > hx) vx -= (cx - hx) * k;
@@ -123,8 +128,8 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
           wny = cy < lo ? lo - cy : cy > hy ? hy - cy : 0;
         }
         const inWall = wnx !== 0 || wny !== 0;
-        // Knocked far enough from its rest spot (wall, cursor, scroll lag): take flight again.
-        if (s[o + P.landed] < 1.5 && sp.reflyDistance > 0 && d > sp.reflyDistance) s[o + P.landed] = 2;
+        // Pushed off its rest spot by a wall: take flight again and join the swarm.
+        if (s[o + P.landed] < 1.5 && inWall && d > 8) s[o + P.landed] = 2;
         const flying = s[o + P.landed] > 1.5;
         const ux = gx / d, uy = gy / d;
         const topSpeed = sp.maxSpeed * (1 + sp.speedVar * s[o + P.jitter]);
@@ -137,8 +142,7 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
           const hx = spd > 0.05 ? vx / spd : ux, hy = spd > 0.05 ? vy / spd : uy;
           const align = hx * ux + hy * uy;
           const cross = hx * uy - hy * ux;
-          const hm = Math.min(0.5, sp.homing * Math.pow(Math.max(d, 1) / 300, sp.homingFalloff));
-          let turn = Math.max(-hm, Math.min(hm, Math.atan2(cross, align)));
+          let turn = Math.max(-sp.homing, Math.min(sp.homing, Math.atan2(cross, align)));
           const gate = Math.min(1, Math.max(0, (align - sp.alignMin) / (1 - sp.alignMin)));
           if (gate > 0) {
             const L = sample(cx + (hx * ca - hy * sa) * sd, cy + (hx * sa + hy * ca) * sd);
@@ -186,11 +190,10 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
         repel();
         vx *= sp.damping; vy *= sp.damping;
         cx += vx; cy += vy;
-        walls();
+        walls(flying);
         if (crowdW > 0) splat(cx, cy, crowdW);
         // Land inside settleRadius, and well inside the refly distance so landing doesn't immediately re-fly.
-        const landAt = sp.reflyDistance > 0 ? Math.min(sp.settleRadius, sp.reflyDistance * 0.5) : sp.settleRadius;
-        if (flying && Math.hypot(ta[0] + dx - cx, ta[1] + dy - cy) < Math.max(landAt, 4)) s[o + P.landed] = 1;
+        if (flying && Math.hypot(ta[0] + dx - cx, ta[1] + dy - cy) < Math.max(sp.settleRadius, 4)) s[o + P.landed] = 1;
         s[o + P.size] += (ta[2] - s[o + P.size]) * 0.1;
         s[o + P.opacity] += (ta[3] - s[o + P.opacity]) * 0.1;
       } else {
@@ -205,7 +208,7 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
         const k = u.t > 0.005 ? 0.12 : s[o + P.speed];
         cx += (tx + dx - cx) * k + vx;
         cy += (ty + dy - cy) * k + vy;
-        if (landed) walls();
+        if (landed) walls(false);
         s[o + P.size] += (tSize - s[o + P.size]) * k;
         s[o + P.opacity] += (tOp - s[o + P.opacity]) * k;
         if (!landed && Math.abs(tx + dx - cx) < 2 && Math.abs(ty + dy - cy) < 2) {
