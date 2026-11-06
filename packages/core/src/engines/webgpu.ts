@@ -20,6 +20,7 @@ const STEP_FIELDS = [
   "features", "octaves", "lacunarity", "gain", "ridged", "sharpness", "normMin", "normMax",
   ...SCENE_FIELDS.map((f) => `a${f}`), ...SCENE_FIELDS.map((f) => `b${f}`),
   "aShiftX", "aShiftY", "bShiftX", "bShiftY",
+  "restFollow", "restNoise", "pad0", "pad1",
 ] as const;
 const RENDER_FIELDS = [
   "vw", "vh", "dpr", "alpha", "inkR", "inkG", "inkB", "size",
@@ -137,7 +138,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     if (hi != p.heading) { p.heading = hi; p.landed = 2.0; }
     let flying = p.landed > 1.5;
     // Shift prev too: riding along with the page isn't motion, so it draws no streak.
-    if (!flying) { p.pos += shift; p.prev += shift; }
+    if (!flying) { p.pos += shift * u.restFollow; p.prev += shift * u.restFollow; }
     let g = T.xy + d - p.pos;
     let dist = max(length(g), 1e-6);
     let dir = g / dist;
@@ -169,6 +170,21 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
       let flightSpeed = desired * (0.25 + 0.75 * max(0.0, al));
       let nsp = sp + (flightSpeed - sp) * u.accel;
       v += (nh * nsp - v) * far;
+    } else if (!flying && u.restNoise > 0.0) {
+      // Resting: a softened sensor turn scatters the spring motion so dots don't all move in parallel.
+      let sp = length(v);
+      if (sp > 0.05) {
+        let h = v / sp;
+        let ca = cos(u.sensorAngle);
+        let sa = sin(u.sensorAngle);
+        let L = sample(p.pos + vec2f(h.x * ca - h.y * sa, h.x * sa + h.y * ca) * u.sensorDist);
+        let R = sample(p.pos + vec2f(h.x * ca + h.y * sa, -h.x * sa + h.y * ca) * u.sensorDist);
+        let k = u.restNoise;
+        let turn = clamp((L - R) * u.turnGain * k, -u.maxTurn * k, u.maxTurn * k);
+        let c = cos(turn);
+        let s = sin(turn);
+        v = vec2f(v.x * c - v.y * s, v.x * s + v.y * c);
+      }
     }
     p.vel = v;
     repel(&p);
@@ -536,7 +552,7 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
     SU.set("aShiftX", u.shiftA.x); SU.set("aShiftY", u.shiftA.y); SU.set("bShiftX", u.shiftB.x); SU.set("bShiftY", u.shiftB.y);
     SU.set("texOffX", u.texOffX % texN); SU.set("texOffY", u.texOffY % texN); SU.set("texN", texN); SU.set("texelPx", f.texelPx);
     for (const k of ["attract", "arriveK", "settleRadius", "damping", "homing", "accel", "maxSpeed", "speedVar", "stagger",
-      "sensorDist", "sensorAngle", "turnGain", "maxTurn", "alignMin"] as const) SU.set(k, sp[k]);
+      "sensorDist", "sensorAngle", "turnGain", "maxTurn", "alignMin", "restFollow", "restNoise"] as const) SU.set(k, sp[k]);
     SU.set("zTime", u.texZ); SU.set("features", f.features); SU.set("octaves", f.octaves); SU.set("lacunarity", f.lacunarity);
     SU.set("gain", f.gain); SU.set("ridged", f.ridged ? 1 : 0); SU.set("sharpness", f.sharpness);
     SU.set("normMin", normMin); SU.set("normMax", normMax);

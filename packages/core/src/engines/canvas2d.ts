@@ -69,7 +69,8 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
         if (!flying) {
           // Shift the last position too: riding along with the page isn't motion, so it draws no streak.
           const sh = toB ? u.shiftB : u.shiftA;
-          cx += sh.x; cy += sh.y; s[o + P.lx] += sh.x; s[o + P.ly] += sh.y;
+          const f = sp.restFollow;
+          cx += sh.x * f; cy += sh.y * f; s[o + P.lx] += sh.x * f; s[o + P.ly] += sh.y * f;
         }
         const gx = ta[0] + dx - cx, gy = ta[1] + dy - cy;
         const d = Math.sqrt(gx * gx + gy * gy) || 1e-6;
@@ -97,6 +98,17 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
           const nsp = spd + (flightSpeed - spd) * sp.accel;
           nvx += (nhx * nsp - nvx) * far;
           nvy += (nhy * nsp - nvy) * far;
+        } else if (!flying && sp.restNoise > 0) {
+          // Resting: a softened sensor turn scatters the spring motion so dots don't all move in parallel.
+          const spd = Math.sqrt(nvx * nvx + nvy * nvy);
+          if (spd > 0.05) {
+            const hx = nvx / spd, hy = nvy / spd, k = sp.restNoise;
+            const L = sample(cx + (hx * ca - hy * sa) * sd, cy + (hx * sa + hy * ca) * sd);
+            const R = sample(cx + (hx * ca + hy * sa) * sd, cy + (-hx * sa + hy * ca) * sd);
+            const turn = Math.max(-sp.maxTurn * k, Math.min(sp.maxTurn * k, (L - R) * sp.turnGain * k));
+            const c = Math.cos(turn), sn = Math.sin(turn);
+            const rx = nvx * c - nvy * sn; nvy = nvx * sn + nvy * c; nvx = rx;
+          }
         }
         vx = nvx; vy = nvy;
         repel();

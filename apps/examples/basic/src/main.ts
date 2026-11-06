@@ -27,6 +27,25 @@ const render = () => {
 };
 stage.ready.then(() => { render(); setInterval(render, 500); });
 
+// Live sliders for the resting behaviour (scroll a little within a section to see it).
+const tune = document.getElementById("tune")!;
+const SLIDERS = [
+  ["steer", "restFollow", 0, 1, 0.05], ["steer", "restNoise", 0, 1, 0.01], ["steer", "attract", 0.02, 0.5, 0.01], ["steer", "arriveK", 0.01, 0.3, 0.005],
+  ["look", "streak", 0, 4, 0.05], ["look", "streakFade", 0, 1, 0.05],
+] as const;
+stage.ready.then(() => {
+  for (const [group, key, min, max, step] of SLIDERS) {
+    const v = group === "steer" ? stage.effect.motion.steer[key as keyof typeof stage.effect.motion.steer] : stage.effect.look[key as "streak"];
+    tune.insertAdjacentHTML("beforeend", `<label for="t-${key}">${key}</label><input id="t-${key}" type="range" min="${min}" max="${max}" step="${step}" value="${v}"><output id="o-${key}">${v}</output>`);
+    const input = document.getElementById(`t-${key}`) as HTMLInputElement;
+    input.addEventListener("input", () => {
+      document.getElementById(`o-${key}`)!.textContent = input.value;
+      const val = Number(input.value);
+      void stage.update(group === "steer" ? { motion: { steer: { [key]: val } } } : { look: { [key]: val } });
+    });
+  }
+});
+
 addEventListener("keydown", (e) => {
   if (e.key === "f") stage.showField = !stage.showField;
   if (e.key === "d") document.body.classList.toggle("debug");
