@@ -21,6 +21,10 @@ export type StepInputs = {
   /** Swirl kick near the cursor (px/step at its centre), from the noise field; nonzero while pressed. */
   mouseNoise: number;
   mouseFalloff: number;
+  /** Crowd force under the cursor (0..1 press level; the bell shapes it); nonzero while pressed in crowd mode. */
+  mouseCrowd: number;
+  /** Whether displaced particles crowd (motion.crowd.enabled). `crowd.enabled` itself means "run the density grid", which pressing can also need. */
+  crowdBase: boolean;
   texOffX: number; texOffY: number; // field scroll (texels)
   texZ: number; // live-noise slice
   liveNoise: boolean;

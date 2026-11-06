@@ -22,6 +22,7 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
   let noiseMs = 0;
   const ta = new Float32Array(4), tb = new Float32Array(4);
   // Crowd density grids: particles read densIn (last step's, blurred) and splat into densOut (raw).
+  let gridWasOn = false;
   let densIn = new Float32Array(1), densOut = new Float32Array(1), blurTmp = new Float32Array(1), gridW = 1, gridH = 1;
 
   const setField = (f: FieldConfig) => {
@@ -49,8 +50,9 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
     if (cw.enabled) {
       const gw = Math.ceil(u.vw / cell) + 1, gh = Math.ceil(u.vh / cell) + 1;
       if (gw !== gridW || gh !== gridH) { gridW = gw; gridH = gh; densIn = new Float32Array(gw * gh); densOut = new Float32Array(gw * gh); }
-      else densOut.fill(0);
+      else { densOut.fill(0); if (!gridWasOn) densIn.fill(0); } // the grid was idle: drop stale density
     }
+    gridWasOn = cw.enabled;
     const dens = (x: number, y: number) => densIn[Math.min(gridH - 1, Math.max(0, y)) * gridW + Math.min(gridW - 1, Math.max(0, x))];
     const densAt = (px: number, py: number) => {
       const gx = px / cell, gy = py / cell, ix = Math.floor(gx), iy = Math.floor(gy), fx = gx - ix, fy = gy - iy;
@@ -192,8 +194,12 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
         // Crowd: displaced particles (with somewhere visible to be) push each other apart.
         let crowdW = 0;
         if (cw.enabled && ta[3] > 0) {
-          const t = Math.min(1, Math.max(0, (d - cw.distance) / cw.distance));
-          crowdW = t * t * (3 - 2 * t);
+          if (u.crowdBase) { const t = Math.min(1, Math.max(0, (d - cw.distance) / cw.distance)); crowdW = t * t * (3 - 2 * t); }
+          // Pressed in crowd mode: everything under the cursor crowds too, weighted by the cursor's bell.
+          if (mouse && u.mouseCrowd > 0) {
+            const x = Math.hypot(cx - mouse.x, cy - mouse.y) / mr;
+            if (x < 1) crowdW = Math.max(crowdW, Math.pow(1 - x * x, u.mouseFalloff) * u.mouseCrowd);
+          }
           if (crowdW > 0) {
             // Per-particle sampling offset (fixed, within a cell) so the crowd doesn't settle into grid rows.
             const qx = cx + (hash01(i * 2 + 77) - 0.5) * cell, qy = cy + (hash01(i * 2 + 78) - 0.5) * cell;

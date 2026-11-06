@@ -22,7 +22,7 @@ const STEP_FIELDS = [
   "aShiftX", "aShiftY", "bShiftX", "bShiftY",
   "restFollow", "restNoise", "walls", "wallMargin",
   "wallBounce", "crowd", "crowdDist", "cellPx", "gridW", "gridH", "wallK", "wallRange", "blur", "wallStrength", "wallCruise", "mouseNoise",
-  "mouseFalloff", "pad3", "pad4", "pad5",
+  "mouseFalloff", "mouseCrowd", "crowdBase", "pad5",
 ] as const;
 const RENDER_FIELDS = [
   "vw", "vh", "dpr", "alpha", "inkR", "inkG", "inkB", "size",
@@ -308,7 +308,12 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     // Crowd: displaced particles (with somewhere visible to be) push each other apart.
     var crowdW = 0.0;
     if (u.crowd > 0.0 && T.w > 0.0) {
-      crowdW = smoothstep(u.crowdDist, u.crowdDist * 2.0, dist);
+      if (u.crowdBase > 0.0) { crowdW = smoothstep(u.crowdDist, u.crowdDist * 2.0, dist); }
+      // Pressed in crowd mode: everything under the cursor crowds too, weighted by the cursor's bell.
+      if (u.mouseCrowd > 0.0) {
+        let x = length(p.pos - vec2f(u.mouseX, u.mouseY)) / u.mouseRadius;
+        if (x < 1.0) { crowdW = max(crowdW, pow(1.0 - x * x, u.mouseFalloff) * u.mouseCrowd); }
+      }
       if (crowdW > 0.0) {
         let e = u.cellPx;
         // Per-particle sampling offset (fixed, within a cell) so the crowd doesn't settle into grid rows.
@@ -641,7 +646,7 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
 
   // Crowd density grids, sized to the viewport / cellPx: [raw (splatted this step), blurred (read next step)].
   let densBufs = [0, 1].map(() => device.createBuffer({ size: 16, usage: U.STORAGE | U.COPY_DST }));
-  let gridW = 1, gridH = 1;
+  let gridW = 1, gridH = 1, gridWasOn = false;
   let simBG: GPUBindGroup, blurBG: GPUBindGroup, noiseBG: GPUBindGroup, renderBG: GPUBindGroup;
   const bindGroups = () => {
     const bg = (l: GPUBindGroupLayout, bufs: [number, GPUBuffer][]) =>
@@ -696,7 +701,7 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
     SU.set("vw", u.vw); SU.set("vh", u.vh); SU.set("count", u.count); SU.set("time", u.time);
     SU.set("t", u.t); SU.set("eased", u.eased); SU.set("drift", u.drift); SU.set("steer", u.steer ? 1 : 0);
     SU.set("mouseX", u.mouse?.x ?? 0); SU.set("mouseY", u.mouse?.y ?? 0); SU.set("mouseSign", u.mouse ? u.mouseSign : 0);
-    SU.set("mouseRadius", u.mouseRadius); SU.set("mouseStrength", u.mouseStrength); SU.set("mouseNoise", u.mouseNoise); SU.set("mouseFalloff", u.mouseFalloff);
+    SU.set("mouseRadius", u.mouseRadius); SU.set("mouseStrength", u.mouseStrength); SU.set("mouseNoise", u.mouseNoise); SU.set("mouseFalloff", u.mouseFalloff); SU.set("mouseCrowd", u.mouse ? u.mouseCrowd : 0); SU.set("crowdBase", u.crowdBase ? 1 : 0);
     SU.set("aShiftX", u.shiftA.x); SU.set("aShiftY", u.shiftA.y); SU.set("bShiftX", u.shiftB.x); SU.set("bShiftY", u.shiftB.y);
     SU.set("texOffX", u.texOffX % texN); SU.set("texOffY", u.texOffY % texN); SU.set("texN", texN); SU.set("texelPx", f.texelPx);
     for (const k of ["attract", "arriveK", "settleRadius", "damping", "homing", "accel", "maxSpeed", "speedVar", "stagger",
@@ -727,6 +732,8 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
       ? { timestampWrites: { querySet, beginningOfPassWriteIndex: stepsThisFrame * 2, endOfPassWriteIndex: stepsThisFrame * 2 + 1 } }
       : {};
     if (cw.enabled) enc.clearBuffer(densBufs[0]);
+    if (cw.enabled && !gridWasOn) enc.clearBuffer(densBufs[1]); // the grid was idle: drop stale density
+    gridWasOn = cw.enabled;
     const pass = enc.beginComputePass(q);
     if (live) {
       pass.setPipeline(noisePipeline);
