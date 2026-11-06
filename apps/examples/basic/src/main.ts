@@ -3,7 +3,7 @@ import effectJson from "./effect.json";
 
 const effect = effectJson as EffectInput;
 const params = new URLSearchParams(location.search);
-const stage = createStage({ effect, engine: (params.get("engine") as EngineKind | null) ?? "auto" });
+const stage = createStage({ effect, baseUrl: new URL(import.meta.env.BASE_URL, location.origin).href, engine: (params.get("engine") as EngineKind | null) ?? "auto" });
 (window as unknown as { stage: typeof stage }).stage = stage;
 
 // The studio: in dev it saves to src/effect.json through the Vite plugin. A

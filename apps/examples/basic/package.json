@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "build:demo": "VITE_STUDIO=1 vite build && rm -rf dist/particulator"
+    "build:demo": "VITE_STUDIO=1 BASE=/particulator/ vite build && rm -rf dist/particulator"
   },
   "dependencies": {
     "particulator": "workspace:*"
