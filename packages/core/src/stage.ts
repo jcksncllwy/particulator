@@ -278,7 +278,7 @@ export function createStage(opts: StageOptions): Stage {
         steer: effect.motion.preset === "steer",
         mouse, mouseSign: m.mode === "repel" ? 1 : m.mode === "attract" ? -1 : 0,
         mouseRadius: m.radius * (1 + (pr.radius - 1) * pl), mouseStrength: m.strength * (1 + (pr.strength - 1) * pl),
-        mouseNoise: pr.noise * pl,
+        mouseNoise: pr.noise * pl, mouseFalloff: m.falloff ?? 2,
         texOffX, texOffY, texZ, liveNoise: effect.field.live,
         steerParams: effect.motion.steer, field: effect.field,
         walls: effect.motion.walls, crowd: effect.motion.crowd,

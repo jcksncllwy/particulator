@@ -20,6 +20,7 @@ export type StepInputs = {
   mouseRadius: number; mouseStrength: number;
   /** Swirl kick near the cursor (px/step at its centre), from the noise field; nonzero while pressed. */
   mouseNoise: number;
+  mouseFalloff: number;
   texOffX: number; texOffY: number; // field scroll (texels)
   texZ: number; // live-noise slice
   liveNoise: boolean;

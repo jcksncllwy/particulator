@@ -97,7 +97,7 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
         if (!mouse || ms === 0) return;
         const mx = cx - mouse.x, my = cy - mouse.y, dist = Math.sqrt(mx * mx + my * my);
         if (dist < mr && dist > 0) {
-          const f = 1 - dist / mr;
+          const x = dist / mr, f = Math.pow(1 - x * x, u.mouseFalloff); // smooth bell, zero slope at the edge
           vx += (mx / dist) * f * ms; vy += (my / dist) * f * ms;
           // Pressed: churn in the noise field (a direction from the field, turning over time).
           if (u.mouseNoise > 0) {
