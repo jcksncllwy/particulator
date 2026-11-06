@@ -1,0 +1,14 @@
+{
+  "name": "@particulator/cli",
+  "version": "0.0.0",
+  "description": "particulator studio: local save server for the Particulator dev studio",
+  "license": "MIT",
+  "type": "module",
+  "bin": { "particulator": "./src/bin.ts" },
+  "exports": {
+    ".": "./src/index.ts",
+    "./vite": "./src/vite.ts"
+  },
+  "scripts": { "typecheck": "tsc -p ." },
+  "devDependencies": { "@types/bun": "^1.3.0" }
+}

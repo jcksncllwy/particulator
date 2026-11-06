@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { DEFAULTS, merge, parseColor, resolveEffect } from "./config";
+import { DEFAULTS, merge, parseColor, resolveEffect, sparseEffect } from "./config";
 import { createDriver, fromProgress } from "./drivers";
 import { hash01, targetOf, toLocal, type SceneXform } from "./particles";
-import { placeScene, sceneXform } from "./placement";
+import { activeBreakpoint, placeScene, sceneXform } from "./placement";
 
 describe("config", () => {
   test("resolveEffect fills defaults and keeps overrides", () => {
@@ -17,6 +17,17 @@ describe("config", () => {
   });
   test("merge replaces arrays wholesale", () => {
     expect(merge({ a: [1, 2, 3] }, { a: [4] })).toEqual({ a: [4] });
+  });
+  test("sparseEffect keeps only what differs from the defaults, and round-trips", () => {
+    const input = {
+      scenes: [{ id: "a", source: { type: "image" as const, src: "a.png" }, placement: { mode: "viewport" as const, x: 0.5, y: 0.5, height: 0.5 } }],
+      motion: { steer: { homing: 0.2 }, walls: { enabled: true } },
+      timeline: { driver: { type: "scroll" as const, sections: "section" } },
+    };
+    const sparse = sparseEffect(resolveEffect(input));
+    expect(sparse).toEqual(input);
+    expect(resolveEffect(sparse)).toEqual(resolveEffect(input));
+    expect(sparseEffect(resolveEffect({ scenes: [] }))).toEqual({ scenes: [] });
   });
   test("parseColor", () => {
     expect(parseColor("#f5f1e8")).toEqual({ r: 245, g: 241, b: 232 });
@@ -65,6 +76,12 @@ describe("drivers", () => {
 });
 
 describe("placement", () => {
+  test("activeBreakpoint picks the smallest maxWidth at or above the width", () => {
+    const p = { mode: "viewport" as const, x: 0, y: 0, height: 1, breakpoints: [{ maxWidth: 1280 }, { maxWidth: 1024 }] };
+    expect(activeBreakpoint(p, 1440)).toBe(-1);
+    expect(activeBreakpoint(p, 1200)).toBe(0);
+    expect(activeBreakpoint(p, 1000)).toBe(1);
+  });
   test("viewport placement with breakpoints", () => {
     const p = { mode: "viewport" as const, x: 0.75, y: 0.5, height: 0.5, breakpoints: [{ maxWidth: 1280, height: 0.4 }, { maxWidth: 1024, height: 0.3 }] };
     expect(placeScene(p, 1, { vw: 1440, vh: 900 })).toMatchObject({ cx: 1080, cy: 450, height: 450 });

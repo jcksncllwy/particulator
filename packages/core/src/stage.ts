@@ -41,6 +41,19 @@ export type StageStats = {
   gpuDrawMs: number | null;
 };
 
+/** Where a scene is on screen right now (what the studio draws handles from). */
+export type SceneInfo = {
+  id: string;
+  index: number;
+  /** Center, size (px) and rotation (rad) as drawn this frame. */
+  cx: number; cy: number; width: number; height: number; rotation: number;
+  aspect: number;
+  /** Dots loaded for the scene (0 while loading or if it failed). */
+  dots: number;
+  /** Element mode: the element it's bound to, if found. */
+  element: Element | null;
+};
+
 export type Stage = {
   readonly canvas: HTMLCanvasElement;
   readonly effect: Effect;
@@ -55,13 +68,32 @@ export type Stage = {
   /** Debug overlay: draw the steering field. */
   showField: boolean;
   stats: () => StageStats;
+  /** Each scene's on-screen box this frame. */
+  scenes: () => SceneInfo[];
+  /** The transition in play: from scene, to scene, t (0..1). */
+  transition: () => Transition;
   destroy: () => void;
 };
 
 const STEP_MS = 1000 / 60;
 const MAX_STEPS = 4;
 
-async function loadCloud(scene: SceneConfig, baseUrl: string): Promise<DotCloud | null> {
+// Dot clouds by source (url + options), so editing one scene doesn't re-stipple the rest.
+const cloudCache = new Map<string, Promise<DotCloud | null>>();
+
+function loadCloud(scene: SceneConfig, baseUrl: string): Promise<DotCloud | null> {
+  const key = JSON.stringify([baseUrl, scene.source]);
+  let p = cloudCache.get(key);
+  if (!p) {
+    p = loadCloudUncached(scene, baseUrl);
+    cloudCache.set(key, p);
+    p.then((c) => { if (!c) cloudCache.delete(key); });
+    if (cloudCache.size > 64) cloudCache.delete(cloudCache.keys().next().value!);
+  }
+  return p;
+}
+
+async function loadCloudUncached(scene: SceneConfig, baseUrl: string): Promise<DotCloud | null> {
   const url = new URL(scene.source.src, baseUrl).href;
   try {
     if (scene.source.type === "dots") {
@@ -104,6 +136,7 @@ export function createStage(opts: StageOptions): Stage {
   let raf = 0;
   let showField = false;
   let pendingProgress = 0;
+  let lastTr: Transition = { from: 0, to: 0, t: 0 };
 
   // Clock and field animation state (shared across engines so swaps are seamless).
   let time = 0, texOffX = 0, texOffY = 0, texZ = 0;
@@ -202,6 +235,7 @@ export function createStage(opts: StageOptions): Stage {
 
     const n = effect.scenes.length;
     const tr: Transition = driver.state(now, n);
+    lastTr = tr;
     updateXforms();
     const A = xforms[tr.from], B = xforms[tr.to];
     if (!A || !B) return;
@@ -317,6 +351,17 @@ export function createStage(opts: StageOptions): Stage {
         gpuDrawMs: t?.gpuDrawMs ?? null,
       };
     },
+    scenes: () => effect.scenes.map((s, i) => {
+      const x = xforms[i], aspect = clouds[i]?.aspect ?? 1, h = x?.scale ?? 0;
+      return {
+        id: s.id, index: i,
+        cx: x?.cx ?? 0, cy: x?.cy ?? 0, width: h * aspect, height: h,
+        rotation: x ? Math.atan2(x.sin, x.cos) : 0,
+        aspect, dots: clouds[i]?.count ?? 0,
+        element: s.placement.mode === "element" ? document.querySelector(s.placement.selector) : null,
+      };
+    }),
+    transition: () => lastTr,
     destroy: () => {
       destroyed = true;
       cancelAnimationFrame(raf);

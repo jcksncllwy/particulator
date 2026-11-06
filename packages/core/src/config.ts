@@ -195,7 +195,7 @@ export const DEFAULTS: Omit<Effect, "scenes"> = {
       sensorDist: 28, sensorAngle: 0.19, turnGain: 0.8, maxTurn: 0.3, alignMin: 0,
       restFollow: 0.75, restNoise: 0.25,
     },
-    walls: { enabled: false, margin: 15, stiffness: 0.08, range: 120, strength: 0.6, cruise: true, bounce: 0.3 },
+    walls: { enabled: false, margin: 0, stiffness: 0.08, range: 10, strength: 0.6, cruise: true, bounce: 0.3 },
     crowd: { enabled: false, strength: 4, distance: 15, cellPx: 6, blur: true },
   },
   field: {
@@ -220,6 +220,30 @@ export function merge<T>(base: T, patch: unknown): T {
     out[k] = isObj(b) && isObj(v) && !("type" in v && (b as { type?: unknown }).type !== v.type) ? merge(b, v) : v;
   }
   return out as T;
+}
+
+/**
+ * The smallest input that resolves to `effect`: only what differs from the
+ * defaults (arrays and scenes are kept whole). What the studio saves.
+ */
+export function sparseEffect(effect: Effect): EffectInput {
+  const diff = (v: unknown, d: unknown): unknown => {
+    if (JSON.stringify(v) === JSON.stringify(d)) return undefined;
+    if (v && d && typeof v === "object" && typeof d === "object" && !Array.isArray(v) && !Array.isArray(d)) {
+      // A union member whose type changed (e.g. a different driver) is kept whole.
+      const vt = (v as { type?: unknown }).type, dt = (d as { type?: unknown }).type;
+      if (vt !== undefined && vt !== dt) return v;
+      const out: Record<string, unknown> = {};
+      for (const k of Object.keys(v)) {
+        const x = diff((v as Record<string, unknown>)[k], (d as Record<string, unknown>)[k]);
+        if (x !== undefined) out[k] = x;
+      }
+      return Object.keys(out).length ? out : undefined;
+    }
+    return v;
+  };
+  const { scenes, ...rest } = effect;
+  return { scenes, ...((diff(rest, DEFAULTS) as object) ?? {}) } as EffectInput; // scenes first: the part people read
 }
 
 export function resolveEffect(input: EffectInput): Effect {

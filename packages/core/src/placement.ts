@@ -6,13 +6,22 @@ import type { SceneXform } from "./particles";
 
 export type Viewport = { vw: number; vh: number };
 
+/** The breakpoint in effect at viewport width vw (the smallest maxWidth ≥ vw), as an index into p.breakpoints, or -1. */
+export function activeBreakpoint(p: Placement, vw: number): number {
+  if (p.mode !== "viewport" || !p.breakpoints?.length) return -1;
+  let best = -1;
+  p.breakpoints.forEach((b, i) => { if (vw <= b.maxWidth && (best < 0 || b.maxWidth < p.breakpoints![best].maxWidth)) best = i; });
+  return best;
+}
+
 /** Center, drawn height (px) and rotation (rad) for a scene this frame, or null if its element is missing. */
 export function placeScene(p: Placement, aspect: number, { vw, vh }: Viewport): { cx: number; cy: number; height: number; rot: number } | null {
   if (p.mode === "viewport") {
     let { x, y, height } = p, rotation = p.rotation ?? 0;
-    if (p.breakpoints) {
-      const bp = [...p.breakpoints].sort((a, b) => a.maxWidth - b.maxWidth).find((b) => vw <= b.maxWidth);
-      if (bp) { x = bp.x ?? x; y = bp.y ?? y; height = bp.height ?? height; rotation = bp.rotation ?? rotation; }
+    const bi = activeBreakpoint(p, vw);
+    if (bi >= 0) {
+      const bp = p.breakpoints![bi];
+      x = bp.x ?? x; y = bp.y ?? y; height = bp.height ?? height; rotation = bp.rotation ?? rotation;
     }
     return { cx: x * vw, cy: y * vh, height: height * vh, rot: (rotation * Math.PI) / 180 };
   }
