@@ -1,0 +1,9 @@
+{
+  "name": "@particulator/dotter",
+  "version": "0.0.0",
+  "description": "Image → dot cloud stippling for Particulator",
+  "license": "MIT",
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "typecheck": "tsc -p ." }
+}
