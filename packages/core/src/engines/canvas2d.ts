@@ -66,7 +66,11 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
         const hi = toB ? u.B.index : u.A.index;
         if (hi !== s[o + P.heading]) { s[o + P.heading] = hi; s[o + P.landed] = 2; }
         const flying = s[o + P.landed] > 1.5;
-        if (!flying) { const sh = toB ? u.shiftB : u.shiftA; cx += sh.x; cy += sh.y; }
+        if (!flying) {
+          // Shift the last position too: riding along with the page isn't motion, so it draws no streak.
+          const sh = toB ? u.shiftB : u.shiftA;
+          cx += sh.x; cy += sh.y; s[o + P.lx] += sh.x; s[o + P.ly] += sh.y;
+        }
         const gx = ta[0] + dx - cx, gy = ta[1] + dy - cy;
         const d = Math.sqrt(gx * gx + gy * gy) || 1e-6;
         const ux = gx / d, uy = gy / d;

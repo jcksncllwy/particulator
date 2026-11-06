@@ -136,7 +136,8 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     // A new target scene starts a flight; resting particles ride along with their scene.
     if (hi != p.heading) { p.heading = hi; p.landed = 2.0; }
     let flying = p.landed > 1.5;
-    if (!flying) { p.pos += shift; }
+    // Shift prev too: riding along with the page isn't motion, so it draws no streak.
+    if (!flying) { p.pos += shift; p.prev += shift; }
     let g = T.xy + d - p.pos;
     let dist = max(length(g), 1e-6);
     let dir = g / dist;
