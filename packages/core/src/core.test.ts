@@ -46,9 +46,9 @@ describe("drivers", () => {
     const d = createDriver({ type: "api" });
     d.setProgress!(0);
     d.goTo!(4, 1000, 0);
-    expect(d.state(0, 6)).toEqual({ from: 0, to: 4, t: 0 });
+    expect(d.state(0, 6)).toEqual({ from: 0, to: 4, t: 0, lead: 0 }); // committed: leaves at once
     expect(d.state(500, 6).t).toBeCloseTo(0.5);
-    expect(d.state(1000, 6)).toEqual({ from: 4, to: 4, t: 0 });
+    expect(d.state(1000, 6)).toMatchObject({ from: 4, to: 4, t: 0 });
   });
   test("time loop wraps last → first", () => {
     const d = createDriver({ type: "time", hold: 1, transition: 1, loop: "loop" });
@@ -62,11 +62,15 @@ describe("drivers", () => {
     let top = 0; // page scroll in px; sections are 1000px tall
     (globalThis as any).document = { querySelectorAll: () => [0, 1, 2].map((i) => ({ getBoundingClientRect: () => ({ top: i * 1000 - top, left: 0 }) })) };
     const d = createDriver({ type: "scroll", sections: "section", mode: "snap", threshold: 0.5, duration: 1 });
-    expect(d.state(0, 3)).toEqual({ from: 0, to: 0, t: 0 });
-    top = 400; expect(d.state(100, 3)).toEqual({ from: 0, to: 0, t: 0 }); // under threshold: stay
-    top = 600; expect(d.state(200, 3)).toEqual({ from: 0, to: 1, t: 0 }); // past it: start flight
+    expect(d.state(0, 3)).toMatchObject({ from: 0, to: 0, t: 0 });
+    top = 400; expect(d.state(100, 3)).toMatchObject({ from: 0, to: 0, t: 0 }); // under threshold: stay
+    top = 600; expect(d.state(200, 3)).toEqual({ from: 0, to: 1, t: 0, lead: 0 }); // past it: leave at once
     top = 650; expect(d.state(700, 3).t).toBeCloseTo(0.5); // timed, not scrubbed
-    expect(d.state(1200, 3)).toEqual({ from: 1, to: 1, t: 0 });
+    expect(d.state(1200, 3)).toMatchObject({ from: 1, to: 1, t: 0 });
+    // Past another threshold mid-flight: everyone straight to the new scene (no sweep back from the old one).
+    top = 600; d.state(1300, 3); top = 0; expect(d.state(1400, 3)).toMatchObject({ from: 1, to: 0 });
+    top = 1600; expect(d.state(1500, 3)).toMatchObject({ from: 2, to: 2 });
+    expect(d.state(2600, 3)).toMatchObject({ from: 2, to: 2, t: 0 });
     delete (globalThis as any).document;
   });
   test("time pingpong reverses", () => {

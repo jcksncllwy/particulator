@@ -5,7 +5,15 @@
 
 import type { DriverConfig } from "./config";
 
-export type Transition = { from: number; to: number; t: number };
+export type Transition = {
+  from: number; to: number; t: number;
+  /**
+   * Fraction of the transition before the first particle departs (default 0.1). Scroll-scrubbed
+   * transitions keep a little dead zone so a nudge doesn't start a flight; committed ones (snap,
+   * goTo) leave at once.
+   */
+  lead?: number;
+};
 
 export type Driver = {
   /** Called once per frame with the frame's timestamp (ms). */
@@ -40,7 +48,7 @@ export function createDriver(cfg: DriverConfig): Driver {
             if (k >= 1) { tween = null; cur = { from: cur.to, to: cur.to, t: 0 }; }
           }
           const max = Math.max(0, n - 1);
-          return { from: Math.min(cur.from, max), to: Math.min(cur.to, max), t: cur.t };
+          return { from: Math.min(cur.from, max), to: Math.min(cur.to, max), t: cur.t, lead: 0 };
         },
         setProgress: (p) => { tween = null; progress = p; },
         goTo: (scene, dur, now) => {
@@ -106,15 +114,17 @@ export function createDriver(cfg: DriverConfig): Driver {
           const want = clamp(p - Math.floor(p) >= threshold ? Math.ceil(p) : Math.floor(p), 0, Math.max(0, n - 1));
           if (!cur) cur = { from: want, to: want, t: 0 }; // first frame: no flight
           if (want !== cur.to) {
-            const here = cur.t >= 0.5 ? cur.to : cur.from;
-            cur = { from: here, to: want, t: 0 };
+            // At rest: a staggered flight out of the current scene. Mid-flight (scrolling fast
+            // through several sections): everyone heads straight for the new scene, rather than
+            // starting a fresh sweep from the old one, which sent particles already en route back.
+            cur = cur.from === cur.to ? { from: cur.to, to: want, t: 0 } : { from: want, to: want, t: 0 };
             start = now;
           }
           if (cur.from !== cur.to) {
             const k = dur <= 0 ? 1 : clamp((now - start) / dur, 0, 1);
             cur = k >= 1 ? { from: cur.to, to: cur.to, t: 0 } : { ...cur, t: k };
           }
-          return cur;
+          return { ...cur, lead: 0 };
         },
       };
     }

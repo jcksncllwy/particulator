@@ -22,7 +22,7 @@ const STEP_FIELDS = [
   "aShiftX", "aShiftY", "bShiftX", "bShiftY",
   "restFollow", "restNoise", "walls", "wallMargin",
   "wallBounce", "crowd", "pad6", "cellPx", "gridW", "gridH", "wallK", "wallRange", "blur", "wallStrength", "wallCruise", "mouseNoise",
-  "mouseFalloff", "mouseCrowd", "crowdFlight", "pad5",
+  "mouseFalloff", "mouseCrowd", "crowdFlight", "lead",
 ] as const;
 const RENDER_FIELDS = [
   "vw", "vh", "dpr", "alpha", "inkR", "inkG", "inkB", "size",
@@ -229,14 +229,20 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     // Forward (scrolling down) the lowest leave first; going back, the highest.
     var fy = clamp(targetOf(i, ${scene("a")}).y / u.vh, 0.0, 1.0);
     if (u.bIndex >= u.aIndex) { fy = 1.0 - fy; }
-    let switchAt = 0.1 + 0.4 * u.stagger * (fy * 0.85 + (p.stagger / 0.4) * 0.15);
+    let switchAt = u.lead + 0.4 * u.stagger * (fy * 0.85 + (p.stagger / 0.4) * 0.15);
     var T: vec4f;
     var hi: f32;
     var shift: vec2f;
     if (u.t >= switchAt) { T = targetOf(i, ${scene("b")}); hi = u.bIndex; shift = vec2f(u.bShiftX, u.bShiftY); }
     else { T = targetOf(i, ${scene("a")}); hi = u.aIndex; shift = vec2f(u.aShiftX, u.aShiftY); }
     // A new target scene starts a flight; resting particles ride along with their scene.
-    if (hi != p.heading) { p.heading = hi; p.landed = 2.0; }
+    if (hi != p.heading) {
+      p.heading = hi; p.landed = 2.0;
+      // Taking off from off-screen (the old scene scrolled away): start just outside the nearest
+      // edge instead, so the particle streams in now rather than after an unseen trip back.
+      let q = clamp(p.pos, vec2f(-40.0), vec2f(u.vw + 40.0, u.vh + 40.0));
+      if (any(q != p.pos)) { p.pos = q; p.prev = q; }
+    }
     // Shift prev too: riding along with the page isn't motion, so it draws no streak.
     if (p.landed < 1.5) { p.pos += shift * u.restFollow; p.prev += shift * u.restFollow; }
     let goal = T.xy + d;
@@ -701,7 +707,7 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
     SU.set("vw", u.vw); SU.set("vh", u.vh); SU.set("count", u.count); SU.set("time", u.time);
     SU.set("t", u.t); SU.set("eased", u.eased); SU.set("drift", u.drift); SU.set("steer", u.steer ? 1 : 0);
     SU.set("mouseX", u.mouse?.x ?? 0); SU.set("mouseY", u.mouse?.y ?? 0); SU.set("mouseSign", u.mouse ? u.mouseSign : 0);
-    SU.set("mouseRadius", u.mouseRadius); SU.set("mouseStrength", u.mouseStrength); SU.set("mouseNoise", u.mouseNoise); SU.set("mouseFalloff", u.mouseFalloff); SU.set("mouseCrowd", u.mouse ? u.mouseCrowd : 0); SU.set("crowdFlight", u.crowdFlight ? 1 : 0);
+    SU.set("mouseRadius", u.mouseRadius); SU.set("mouseStrength", u.mouseStrength); SU.set("mouseNoise", u.mouseNoise); SU.set("mouseFalloff", u.mouseFalloff); SU.set("mouseCrowd", u.mouse ? u.mouseCrowd : 0); SU.set("crowdFlight", u.crowdFlight ? 1 : 0); SU.set("lead", u.lead);
     SU.set("aShiftX", u.shiftA.x); SU.set("aShiftY", u.shiftA.y); SU.set("bShiftX", u.shiftB.x); SU.set("bShiftY", u.shiftB.y);
     SU.set("texOffX", u.texOffX % texN); SU.set("texOffY", u.texOffY % texN); SU.set("texN", texN); SU.set("texelPx", f.texelPx);
     for (const k of ["attract", "arriveK", "settleRadius", "damping", "homing", "accel", "maxSpeed", "speedVar", "stagger",

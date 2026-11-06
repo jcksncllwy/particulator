@@ -275,7 +275,7 @@ export function createStage(opts: StageOptions): Stage {
       texOffX += effect.field.drift; texOffY += effect.field.drift * 0.37;
       if (effect.field.live) texZ += effect.field.liveSpeed;
       engine.step({
-        vw, vh, count: effect.particles.count, time, A, B, t: tr.t, eased, drift,
+        vw, vh, count: effect.particles.count, time, A, B, t: tr.t, eased, drift, lead: tr.lead ?? 0.1,
         shiftA: steps === 0 ? shiftOf(A) : zero, shiftB: steps === 0 ? shiftOf(B) : zero,
         steer: effect.motion.preset === "steer",
         mouse, mouseSign: m.mode === "repel" ? 1 : m.mode === "attract" ? -1 : 0,

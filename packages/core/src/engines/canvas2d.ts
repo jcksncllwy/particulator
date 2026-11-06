@@ -12,6 +12,9 @@ const ALPHA_BUCKETS = 16;
 // superlinearly slowly; small chunks are ~10x faster.
 const DRAW_CHUNK = 32;
 
+/** How far outside the screen an off-screen departure starts (px). */
+const PULL_IN = 40;
+
 export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): Engine {
   const ctx = canvas.getContext("2d")!;
   let s: ParticleState = new Float32Array(count * STRIDE);
@@ -116,12 +119,18 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
         targetOf(i, u.A, dots, u.vw, u.vh, ta);
         let fy = Math.min(1, Math.max(0, ta[1] / u.vh));
         if (u.B.index >= u.A.index) fy = 1 - fy;
-        const switchAt = 0.1 + 0.4 * sp.stagger * (fy * 0.85 + (s[o + P.stagger] / 0.4) * 0.15);
+        const switchAt = u.lead + 0.4 * sp.stagger * (fy * 0.85 + (s[o + P.stagger] / 0.4) * 0.15);
         const toB = u.t >= switchAt;
         targetOf(i, toB ? u.B : u.A, dots, u.vw, u.vh, ta);
         // A new target scene starts a flight; resting particles ride along with their scene.
         const hi = toB ? u.B.index : u.A.index;
-        if (hi !== s[o + P.heading]) { s[o + P.heading] = hi; s[o + P.landed] = 2; }
+        if (hi !== s[o + P.heading]) {
+          s[o + P.heading] = hi; s[o + P.landed] = 2;
+          // Taking off from off-screen (the old scene scrolled away): start just outside the nearest
+          // edge instead, so the particle streams in now rather than after an unseen trip back.
+          const qx = Math.min(u.vw + PULL_IN, Math.max(-PULL_IN, cx)), qy = Math.min(u.vh + PULL_IN, Math.max(-PULL_IN, cy));
+          if (qx !== cx || qy !== cy) { cx = qx; cy = qy; s[o + P.lx] = cx; s[o + P.ly] = cy; }
+        }
         if (s[o + P.landed] < 1.5) {
           // Shift the last position too: riding along with the page isn't motion, so it draws no streak.
           const sh = toB ? u.shiftB : u.shiftA;
