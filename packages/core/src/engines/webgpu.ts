@@ -150,12 +150,13 @@ fn edgePush(d: f32) -> f32 {
 }
 fn walls(p: ptr<function, Particle>, flying: bool) {
   if (u.walls < 0.5) { return; }
+  // Flying particles only: a smooth push away from the edges, plus a spring past the margin.
+  // (Resting particles sit on reachable rest spots, so walls never deform an image.)
   if (flying) {
     let q = (*p).pos;
     (*p).vel += vec2f(edgePush(q.x) - edgePush(u.vw - q.x), edgePush(q.y) - edgePush(u.vh - q.y));
+    (*p).vel += wallIn(q) * u.wallK;
   }
-  // Soft wall: a spring proportional to how far past the margin the particle is.
-  (*p).vel += wallIn((*p).pos) * u.wallK;
   // Hard stop at the viewport edge itself.
   let e = vec2f(u.vw, u.vh);
   if ((*p).pos.x < 0.0) { (*p).pos.x = 0.0; (*p).vel.x = abs((*p).vel.x) * u.wallBounce; }
@@ -230,17 +231,26 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     if (hi != p.heading) { p.heading = hi; p.landed = 2.0; }
     // Shift prev too: riding along with the page isn't motion, so it draws no streak.
     if (p.landed < 1.5) { p.pos += shift * u.restFollow; p.prev += shift * u.restFollow; }
-    let g = T.xy + d - p.pos;
-    let dist = max(length(g), 1e-6);
-    // Pushed off its rest spot by a wall: take flight again and join the swarm.
-    let wn = wallIn(p.pos);
-    if (p.landed < 1.5 && dot(wn, wn) > 0.0 && dist > 8.0) { p.landed = 2.0; }
+    let goal = T.xy + d;
+    let dist = max(length(goal - p.pos), 1e-6); // to the real rest spot: landing, crowd
+    // Rest spot at or past the screen edge: unreachable. Fly (or take flight again) and aim at the
+    // nearest point well inside the walls, without slowing to land, so they swarm there until it's back in view.
+    let unreachable = u.walls > 0.5 && T.w > 0.0 && (goal.x < 0.0 || goal.y < 0.0 || goal.x > u.vw || goal.y > u.vh);
+    if (unreachable) { p.landed = 2.0; }
     let flying = p.landed > 1.5;
-    let dir = g / dist;
+    var aim = goal;
+    if (unreachable) {
+      let inset = min(u.wallMargin + 0.5 * u.wallRange, 0.5 * min(u.vw, u.vh));
+      aim = clamp(goal, vec2f(inset), vec2f(u.vw, u.vh) - inset);
+    }
+    let aimDist = max(length(aim - p.pos), 1e-6);
+    let dir = (aim - p.pos) / aimDist;
+    let wn = wallIn(p.pos);
     let topSpeed = u.maxSpeed * (1.0 + u.speedVar * p.jitter);
-    let desired = min(topSpeed, dist * u.arriveK);
+    let desired = select(min(topSpeed, aimDist * u.arriveK), topSpeed, unreachable);
     var far = 0.0;
-    if (flying && dist > u.settleRadius) {
+    if (unreachable) { far = 1.0; }
+    else if (flying && dist > u.settleRadius) {
       far = select(1.0, min(1.0, (dist - u.settleRadius) / u.settleRadius), u.settleRadius > 0.0);
     }
     var v = p.vel + (dir * desired - p.vel) * u.attract;

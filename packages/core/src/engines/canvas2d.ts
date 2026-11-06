@@ -77,15 +77,15 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
 
       const walls = (flying: boolean) => {
         if (!wl.enabled) return;
+        // Flying particles only: a smooth push away from the edges, plus a spring past the margin.
+        // (Resting particles sit on reachable rest spots, so walls never deform an image.)
         if (flying) {
-          // Smooth push away from the edges: 0 at range px, strength at the edge.
           const push = (dd: number) => { const k = Math.max(0, 1 - dd / Math.max(wl.range, 1)); return wl.strength * k * k; };
           vx += push(cx) - push(u.vw - cx); vy += push(cy) - push(u.vh - cy);
+          const lo = wl.margin, hx = u.vw - wl.margin, hy = u.vh - wl.margin, k = wl.stiffness;
+          if (cx < lo) vx += (lo - cx) * k; else if (cx > hx) vx -= (cx - hx) * k;
+          if (cy < lo) vy += (lo - cy) * k; else if (cy > hy) vy -= (cy - hy) * k;
         }
-        // Soft wall: a spring proportional to how far past the margin the particle is.
-        const lo = wl.margin, hx = u.vw - wl.margin, hy = u.vh - wl.margin, k = wl.stiffness;
-        if (cx < lo) vx += (lo - cx) * k; else if (cx > hx) vx -= (cx - hx) * k;
-        if (cy < lo) vy += (lo - cy) * k; else if (cy > hy) vy -= (cy - hy) * k;
         // Hard stop at the viewport edge itself.
         if (cx < 0) { cx = 0; vx = Math.abs(vx) * wl.bounce; }
         if (cx > u.vw) { cx = u.vw; vx = -Math.abs(vx) * wl.bounce; }
@@ -118,8 +118,19 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
           const f = sp.restFollow;
           cx += sh.x * f; cy += sh.y * f; s[o + P.lx] += sh.x * f; s[o + P.ly] += sh.y * f;
         }
-        const gx = ta[0] + dx - cx, gy = ta[1] + dy - cy;
-        const d = Math.sqrt(gx * gx + gy * gy) || 1e-6;
+        const goalX = ta[0] + dx, goalY = ta[1] + dy;
+        const d = Math.hypot(goalX - cx, goalY - cy) || 1e-6; // to the real rest spot: landing, crowd
+        // Rest spot at or past the screen edge: unreachable. Fly (or take flight again) and aim at the
+        // nearest point well inside the walls, without slowing to land, so they swarm there until it's back in view.
+        const unreachable = wl.enabled && ta[3] > 0 && (goalX < 0 || goalY < 0 || goalX > u.vw || goalY > u.vh);
+        if (unreachable) s[o + P.landed] = 2;
+        let aimX = goalX, aimY = goalY;
+        if (unreachable) {
+          const inset = Math.min(wl.margin + 0.5 * wl.range, 0.5 * Math.min(u.vw, u.vh));
+          aimX = Math.min(u.vw - inset, Math.max(inset, goalX)); aimY = Math.min(u.vh - inset, Math.max(inset, goalY));
+        }
+        const gx = aimX - cx, gy = aimY - cy;
+        const aimD = Math.hypot(gx, gy) || 1e-6;
         // How far past the soft-wall margin we are, pointing inward.
         let wnx = 0, wny = 0;
         if (wl.enabled) {
@@ -128,13 +139,11 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
           wny = cy < lo ? lo - cy : cy > hy ? hy - cy : 0;
         }
         const inWall = wnx !== 0 || wny !== 0;
-        // Pushed off its rest spot by a wall: take flight again and join the swarm.
-        if (s[o + P.landed] < 1.5 && inWall && d > 8) s[o + P.landed] = 2;
         const flying = s[o + P.landed] > 1.5;
-        const ux = gx / d, uy = gy / d;
+        const ux = gx / aimD, uy = gy / aimD;
         const topSpeed = sp.maxSpeed * (1 + sp.speedVar * s[o + P.jitter]);
-        const desired = Math.min(topSpeed, d * sp.arriveK);
-        const far = !flying || d <= sp.settleRadius ? 0 : sp.settleRadius > 0 ? Math.min(1, (d - sp.settleRadius) / sp.settleRadius) : 1;
+        const desired = unreachable ? topSpeed : Math.min(topSpeed, aimD * sp.arriveK);
+        const far = unreachable ? 1 : !flying || d <= sp.settleRadius ? 0 : sp.settleRadius > 0 ? Math.min(1, (d - sp.settleRadius) / sp.settleRadius) : 1;
         let nvx = vx + (ux * desired - vx) * sp.attract;
         let nvy = vy + (uy * desired - vy) * sp.attract;
         if (far > 0) {
