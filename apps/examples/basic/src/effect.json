@@ -73,6 +73,14 @@
     },
     "theme": "class:dark"
   },
+  "interaction": {
+    "mouse": {
+      "press": {
+        "swirl": false,
+        "crowd": true
+      }
+    }
+  },
   "stage": {
     "zIndex": 1
   }

@@ -167,11 +167,11 @@ export type InteractionConfig = {
     falloff: number;
     /**
      * While the button (or a touch) is held, ramping in and out over ~0.2s: radius and strength
-     * multiply up, and then either `swirl` (particles churn in the noise field, by `noise`) or
-     * `crowd` (particles under the cursor push each other apart with the crowd force, at
+     * multiply up, plus either or both of: `swirl` (particles churn in the noise field, by `noise`)
+     * and `crowd` (particles under the cursor push each other apart with the crowd force, at
      * motion.crowd.strength, weighted by the same bell; works even with crowd disabled).
      */
-    press: { mode: "swirl" | "crowd"; radius: number; strength: number; noise: number };
+    press: { radius: number; strength: number; swirl: boolean; noise: number; crowd: boolean };
   };
 };
 
@@ -216,7 +216,7 @@ export const DEFAULTS: Omit<Effect, "scenes"> = {
     ridged: true, sharpness: 3, seed: 7, drift: 0.15, live: false, liveSpeed: 0.004,
   },
   look: { ink: "#1a1a1a", theme: "none", size: 1, streak: 1, streakTaper: 0.7, streakFade: 0.3, restStreak: 0 },
-  interaction: { mouse: { mode: "repel", radius: 70, strength: 0.15, falloff: 2, press: { mode: "swirl", radius: 1.6, strength: 3, noise: 0.6 } } },
+  interaction: { mouse: { mode: "repel", radius: 70, strength: 0.15, falloff: 2, press: { radius: 1.6, strength: 3, swirl: true, noise: 0.6, crowd: false } } },
   stage: { zIndex: 0 },
 };
 

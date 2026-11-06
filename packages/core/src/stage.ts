@@ -270,8 +270,8 @@ export function createStage(opts: StageOptions): Stage {
       time += 0.016;
       pressLevel += ((pressed ? 1 : 0) - pressLevel) * 0.08;
       const pl = pressLevel < 0.001 || !mouse || m.mode === "off" ? 0 : pressLevel;
-      const pr = m.press ?? { mode: "swirl", radius: 1, strength: 1, noise: 0 };
-      const pressCrowd = pr.mode === "crowd" ? pl : 0;
+      const pr = m.press ?? { radius: 1, strength: 1, swirl: false, noise: 0, crowd: false };
+      const pressCrowd = pr.crowd ? pl : 0;
       texOffX += effect.field.drift; texOffY += effect.field.drift * 0.37;
       if (effect.field.live) texZ += effect.field.liveSpeed;
       engine.step({
@@ -280,7 +280,7 @@ export function createStage(opts: StageOptions): Stage {
         steer: effect.motion.preset === "steer",
         mouse, mouseSign: m.mode === "repel" ? 1 : m.mode === "attract" ? -1 : 0,
         mouseRadius: m.radius * (1 + (pr.radius - 1) * pl), mouseStrength: m.strength * (1 + (pr.strength - 1) * pl),
-        mouseNoise: pr.mode === "crowd" ? 0 : pr.noise * pl, mouseFalloff: m.falloff ?? 2,
+        mouseNoise: pr.swirl ? pr.noise * pl : 0, mouseFalloff: m.falloff ?? 2,
         mouseCrowd: pressCrowd, crowdBase: effect.motion.crowd.enabled,
         texOffX, texOffY, texZ, liveNoise: effect.field.live,
         steerParams: effect.motion.steer, field: effect.field,

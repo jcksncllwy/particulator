@@ -152,10 +152,11 @@ export const MOTION: { title: string; specs: Spec[]; open?: boolean }[] = [
       { kind: "range", path: "interaction.mouse.radius", min: 10, max: 300, step: 1 },
       { kind: "range", path: "interaction.mouse.strength", min: 0, max: 1, step: 0.005 },
       { kind: "range", path: "interaction.mouse.falloff", min: 0.5, max: 6, step: 0.1, help: "edge softness: higher fades out sooner" },
-      { kind: "select", path: "interaction.mouse.press.mode", options: ["swirl", "crowd"], help: "what pressing adds: noise swirl, or crowd repulsion under the cursor" },
       { kind: "range", path: "interaction.mouse.press.radius", min: 1, max: 4, step: 0.05, help: "radius × while pressed" },
       { kind: "range", path: "interaction.mouse.press.strength", min: 1, max: 10, step: 0.1, help: "strength × while pressed" },
-      { kind: "range", path: "interaction.mouse.press.noise", min: 0, max: 3, step: 0.05, help: "swirl while pressed (swirl mode)" },
+      { kind: "toggle", path: "interaction.mouse.press.swirl", help: "pressing churns particles in the noise field" },
+      { kind: "range", path: "interaction.mouse.press.noise", min: 0, max: 3, step: 0.05, help: "swirl amount" },
+      { kind: "toggle", path: "interaction.mouse.press.crowd", help: "pressing spreads particles apart (crowd force, at Crowd strength)" },
     ],
   },
 ];

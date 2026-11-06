@@ -309,7 +309,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     var crowdW = 0.0;
     if (u.crowd > 0.0 && T.w > 0.0) {
       if (u.crowdBase > 0.0) { crowdW = smoothstep(u.crowdDist, u.crowdDist * 2.0, dist); }
-      // Pressed in crowd mode: everything under the cursor crowds too, weighted by the cursor's bell.
+      // Pressed with press.crowd: everything under the cursor crowds too, weighted by the cursor's bell.
       if (u.mouseCrowd > 0.0) {
         let x = length(p.pos - vec2f(u.mouseX, u.mouseY)) / u.mouseRadius;
         if (x < 1.0) { crowdW = max(crowdW, pow(1.0 - x * x, u.mouseFalloff) * u.mouseCrowd); }

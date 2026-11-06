@@ -195,7 +195,7 @@ export function createCanvas2DEngine(canvas: HTMLCanvasElement, count: number): 
         let crowdW = 0;
         if (cw.enabled && ta[3] > 0) {
           if (u.crowdBase) { const t = Math.min(1, Math.max(0, (d - cw.distance) / cw.distance)); crowdW = t * t * (3 - 2 * t); }
-          // Pressed in crowd mode: everything under the cursor crowds too, weighted by the cursor's bell.
+          // Pressed with press.crowd: everything under the cursor crowds too, weighted by the cursor's bell.
           if (mouse && u.mouseCrowd > 0) {
             const x = Math.hypot(cx - mouse.x, cy - mouse.y) / mr;
             if (x < 1) crowdW = Math.max(crowdW, Math.pow(1 - x * x, u.mouseFalloff) * u.mouseCrowd);
