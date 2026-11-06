@@ -21,7 +21,7 @@ const STEP_FIELDS = [
   ...SCENE_FIELDS.map((f) => `a${f}`), ...SCENE_FIELDS.map((f) => `b${f}`),
   "aShiftX", "aShiftY", "bShiftX", "bShiftY",
   "restFollow", "restNoise", "walls", "wallMargin",
-  "wallBounce", "crowd", "crowdDist", "cellPx", "gridW", "gridH", "wallK", "pad1",
+  "wallBounce", "crowd", "crowdDist", "cellPx", "gridW", "gridH", "wallK", "reflyDist", "blur", "pad0", "pad1", "pad2",
 ] as const;
 const RENDER_FIELDS = [
   "vw", "vh", "dpr", "alpha", "inkR", "inkG", "inkB", "size",
@@ -65,6 +65,36 @@ fn sampleField(px: f32, py: f32, n: f32, texelPx: f32, offX: f32, offY: f32) -> 
 }
 `;
 
+// 5x5 binomial blur of the raw crowd density into the grid particles read next step.
+function blurWGSL(stepStruct: string) {
+  return /* wgsl */ `
+struct U { ${stepStruct} }
+@group(0) @binding(0) var<uniform> u: U;
+@group(0) @binding(1) var<storage, read> raw: array<u32>;
+@group(0) @binding(2) var<storage, read_write> blurred: array<u32>;
+
+@compute @workgroup_size(8, 8)
+fn main(@builtin(global_invocation_id) gid: vec3u) {
+  let W = i32(u.gridW);
+  let H = i32(u.gridH);
+  let x = i32(gid.x);
+  let y = i32(gid.y);
+  if (x >= W || y >= H) { return; }
+  if (u.blur < 0.5) { blurred[y * W + x] = raw[y * W + x]; return; }
+  var k = array<f32, 5>(1.0, 4.0, 6.0, 4.0, 1.0);
+  var sum = 0.0;
+  for (var dy = -2; dy <= 2; dy++) {
+    for (var dx = -2; dx <= 2; dx++) {
+      let cx = clamp(x + dx, 0, W - 1);
+      let cy = clamp(y + dy, 0, H - 1);
+      sum += k[dx + 2] * k[dy + 2] * f32(raw[cy * W + cx]);
+    }
+  }
+  blurred[y * W + x] = u32(sum / 256.0);
+}
+`;
+}
+
 function simWGSL(stepStruct: string) {
   const scene = (p: string) => `SceneX(${SCENE_FIELDS.map((f) => `u.${p}${f}`).join(", ")})`;
   return /* wgsl */ `
@@ -75,7 +105,7 @@ ${WGSL_PARTICLE}
 @group(0) @binding(1) var<storage, read_write> ps: array<Particle>;
 @group(0) @binding(2) var<storage, read> dots: array<vec4f>; // local x, y, size, opacity
 @group(0) @binding(3) var<storage, read> field: array<f32>;
-// Crowd density, ping-ponged: read last step's, splat into this step's (fixed point, 1/256 particle).
+// Crowd density (fixed point, 1/256 particle): read the blurred grid from last step, splat into the raw one.
 @group(0) @binding(4) var<storage, read> densIn: array<u32>;
 @group(0) @binding(5) var<storage, read_write> densOut: array<atomic<u32>>;
 ${WGSL_FIELD}
@@ -106,12 +136,17 @@ fn splat(q: vec2f, w: f32) {
     atomicAdd(&densOut[u32(c.y * W + c.x)], u32(w * wx * wy * 256.0));
   }
 }
+// How far past the soft-wall margin q is, as an inward-pointing vector (0 inside, or with walls off).
+fn wallIn(q: vec2f) -> vec2f {
+  if (u.walls < 0.5) { return vec2f(0.0); }
+  let lo = vec2f(u.wallMargin);
+  let hi = vec2f(u.vw, u.vh) - u.wallMargin;
+  return max(lo - q, vec2f(0.0)) - max(q - hi, vec2f(0.0));
+}
 fn walls(p: ptr<function, Particle>) {
   if (u.walls < 0.5) { return; }
   // Soft wall: a spring proportional to how far past the margin the particle is.
-  let lo = vec2f(u.wallMargin);
-  let hi = vec2f(u.vw, u.vh) - u.wallMargin;
-  (*p).vel += (max(lo - (*p).pos, vec2f(0.0)) - max((*p).pos - hi, vec2f(0.0))) * u.wallK;
+  (*p).vel += wallIn((*p).pos) * u.wallK;
   // Hard stop at the viewport edge itself.
   let e = vec2f(u.vw, u.vh);
   if ((*p).pos.x < 0.0) { (*p).pos.x = 0.0; (*p).vel.x = abs((*p).vel.x) * u.wallBounce; }
@@ -184,11 +219,14 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     else { T = targetOf(i, ${scene("a")}); hi = u.aIndex; shift = vec2f(u.aShiftX, u.aShiftY); }
     // A new target scene starts a flight; resting particles ride along with their scene.
     if (hi != p.heading) { p.heading = hi; p.landed = 2.0; }
-    let flying = p.landed > 1.5;
     // Shift prev too: riding along with the page isn't motion, so it draws no streak.
-    if (!flying) { p.pos += shift * u.restFollow; p.prev += shift * u.restFollow; }
+    if (p.landed < 1.5) { p.pos += shift * u.restFollow; p.prev += shift * u.restFollow; }
     let g = T.xy + d - p.pos;
     let dist = max(length(g), 1e-6);
+    // Pushed by a wall far enough from its rest spot: take flight again and join the swarm.
+    let wn = wallIn(p.pos);
+    if (p.landed < 1.5 && dot(wn, wn) > 0.0 && dist > u.reflyDist) { p.landed = 2.0; }
+    let flying = p.landed > 1.5;
     let dir = g / dist;
     let topSpeed = u.maxSpeed * (1.0 + u.speedVar * p.jitter);
     let desired = min(topSpeed, dist * u.arriveK);
@@ -214,7 +252,13 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
       }
       let c = cos(turn);
       let s = sin(turn);
-      let nh = vec2f(h.x * c - h.y * s, h.x * s + h.y * c);
+      var nh = vec2f(h.x * c - h.y * s, h.x * s + h.y * c);
+      // Heading into a wall: bounce the heading, so homing curves it back around instead of skimming along the wall.
+      if (dot(wn, wn) > 0.0) {
+        let n = normalize(wn);
+        let into = dot(nh, n);
+        if (into < 0.0) { nh -= 2.0 * into * n; }
+      }
       let flightSpeed = desired * (0.25 + 0.75 * max(0.0, al));
       let nsp = sp + (flightSpeed - sp) * u.accel;
       v += (nh * nsp - v) * far;
@@ -523,6 +567,11 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
     { binding: 4, visibility: C, buffer: { type: "read-only-storage" } },
     { binding: 5, visibility: C, buffer: { type: "storage" } },
   ]);
+  const blurLayout = layout([
+    { binding: 0, visibility: C, buffer: { type: "uniform" } },
+    { binding: 1, visibility: C, buffer: { type: "read-only-storage" } },
+    { binding: 2, visibility: C, buffer: { type: "storage" } },
+  ]);
   const noiseLayout = layout([
     { binding: 0, visibility: C, buffer: { type: "uniform" } },
     { binding: 1, visibility: C, buffer: { type: "storage" } },
@@ -539,6 +588,7 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
   });
   const simPipeline = compute(simWGSL(SU.wgsl), simLayout, "particulator sim");
   const noisePipeline = compute(noiseWGSL(SU.wgsl), noiseLayout, "particulator noise");
+  const blurPipeline = compute(blurWGSL(SU.wgsl), blurLayout, "particulator crowd blur");
   const renderModule = device.createShaderModule({ code: renderWGSL(RU.wgsl), label: "particulator render" });
   const SAMPLES = 4;
   const blend: GPUBlendState = {
@@ -561,15 +611,15 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
     multisample: { count: SAMPLES },
   });
 
-  // Crowd density grids (ping-pong), sized to the viewport / cellPx.
+  // Crowd density grids, sized to the viewport / cellPx: [raw (splatted this step), blurred (read next step)].
   let densBufs = [0, 1].map(() => device.createBuffer({ size: 16, usage: U.STORAGE | U.COPY_DST }));
-  let gridW = 1, gridH = 1, densCur = 0;
-  let simBGs: GPUBindGroup[] = [];
-  let noiseBG: GPUBindGroup, renderBG: GPUBindGroup;
+  let gridW = 1, gridH = 1;
+  let simBG: GPUBindGroup, blurBG: GPUBindGroup, noiseBG: GPUBindGroup, renderBG: GPUBindGroup;
   const bindGroups = () => {
     const bg = (l: GPUBindGroupLayout, bufs: [number, GPUBuffer][]) =>
       device.createBindGroup({ layout: l, entries: bufs.map(([binding, buffer]) => ({ binding, resource: { buffer } })) });
-    simBGs = [0, 1].map((k) => bg(simLayout, [[0, stepBuf], [1, particleBuf], [2, dotBuf], [3, fieldBuf], [4, densBufs[k]], [5, densBufs[1 - k]]]));
+    simBG = bg(simLayout, [[0, stepBuf], [1, particleBuf], [2, dotBuf], [3, fieldBuf], [4, densBufs[1]], [5, densBufs[0]]]);
+    blurBG = bg(blurLayout, [[0, stepBuf], [1, densBufs[0]], [2, densBufs[1]]]);
     noiseBG = bg(noiseLayout, [[0, stepBuf], [1, fieldBuf], [2, permBuf]]);
     renderBG = bg(renderLayout, [[0, renderBuf], [1, particleBuf], [3, fieldBuf]]);
   };
@@ -639,7 +689,7 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
       densBufs = [0, 1].map(() => device.createBuffer({ size: gridW * gridH * 4, usage: U.STORAGE | U.COPY_DST }));
       bindGroups();
     }
-    SU.set("walls", wl.enabled ? 1 : 0); SU.set("wallMargin", wl.margin); SU.set("wallBounce", wl.bounce); SU.set("wallK", wl.stiffness);
+    SU.set("walls", wl.enabled ? 1 : 0); SU.set("wallMargin", wl.margin); SU.set("wallBounce", wl.bounce); SU.set("wallK", wl.stiffness); SU.set("reflyDist", wl.reflyDistance); SU.set("blur", cw.blur ? 1 : 0);
     SU.set("crowd", cw.enabled ? cw.strength : 0); SU.set("crowdDist", cw.distance); SU.set("cellPx", cw.cellPx);
     SU.set("gridW", gridW); SU.set("gridH", gridH);
     device.queue.writeBuffer(stepBuf, 0, SU.data);
@@ -648,7 +698,7 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
     const q = stepsThisFrame < MAX_STEPS_TIMED && querySet
       ? { timestampWrites: { querySet, beginningOfPassWriteIndex: stepsThisFrame * 2, endOfPassWriteIndex: stepsThisFrame * 2 + 1 } }
       : {};
-    if (cw.enabled) enc.clearBuffer(densBufs[1 - densCur]);
+    if (cw.enabled) enc.clearBuffer(densBufs[0]);
     const pass = enc.beginComputePass(q);
     if (live) {
       pass.setPipeline(noisePipeline);
@@ -656,10 +706,14 @@ export async function createWebGPUEngine(canvas: HTMLCanvasElement, count: numbe
       pass.dispatchWorkgroups(Math.ceil(texN / 8), Math.ceil(texN / 8));
     }
     pass.setPipeline(simPipeline);
-    pass.setBindGroup(0, simBGs[densCur]);
+    pass.setBindGroup(0, simBG);
     pass.dispatchWorkgroups(Math.ceil(u.count / 256));
+    if (cw.enabled) {
+      pass.setPipeline(blurPipeline);
+      pass.setBindGroup(0, blurBG);
+      pass.dispatchWorkgroups(Math.ceil(gridW / 8), Math.ceil(gridH / 8));
+    }
     pass.end();
-    if (cw.enabled) densCur = 1 - densCur;
     device.queue.submit([enc.finish()]);
     stepsThisFrame++;
   };

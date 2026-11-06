@@ -101,6 +101,8 @@ export type WallsConfig = {
   stiffness: number;
   /** At the viewport edge itself particles are stopped hard; fraction of speed kept when they bounce. */
   bounce: number;
+  /** A resting particle the wall is pushing, this far (px) from its rest spot, takes flight again (joins the swarm). */
+  reflyDistance: number;
 };
 
 /**
@@ -117,6 +119,8 @@ export type CrowdConfig = {
   distance: number;
   /** Density grid cell size, px. */
   cellPx: number;
+  /** Smooth the density grid (5x5 blur) before particles read it. Evens out clumps and grid striping. */
+  blur: boolean;
 };
 
 export type FieldConfig = {
@@ -182,8 +186,8 @@ export const DEFAULTS: Omit<Effect, "scenes"> = {
       sensorDist: 28, sensorAngle: 0.19, turnGain: 0.8, maxTurn: 0.3, alignMin: 0,
       restFollow: 0.75, restNoise: 0.25,
     },
-    walls: { enabled: false, margin: 15, stiffness: 0.08, bounce: 0.3 },
-    crowd: { enabled: false, strength: 4, distance: 30, cellPx: 6 },
+    walls: { enabled: false, margin: 15, stiffness: 0.08, bounce: 0.3, reflyDistance: 60 },
+    crowd: { enabled: false, strength: 4, distance: 30, cellPx: 6, blur: true },
   },
   field: {
     size: 256, texelPx: 4, features: 5, octaves: 3, lacunarity: 2, gain: 0.5,

@@ -35,11 +35,11 @@ const SLIDERS: Spec[] = [
   ["motion.steer.restFollow", 0, 1, 0.05], ["motion.steer.restNoise", 0, 1, 0.01],
   ["motion.steer.attract", 0.02, 0.5, 0.01], ["motion.steer.arriveK", 0.01, 0.3, 0.005],
   ["look.streak", 0, 4, 0.05], ["look.streakFade", 0, 1, 0.05], ["look.restStreak", 0, 1, 0.05],
-  ["motion.walls.margin", 0, 80, 1], ["motion.walls.stiffness", 0, 0.5, 0.005], ["motion.walls.bounce", 0, 1, 0.05],
+  ["motion.walls.margin", 0, 80, 1], ["motion.walls.stiffness", 0, 0.5, 0.005], ["motion.walls.bounce", 0, 1, 0.05], ["motion.walls.reflyDistance", 0, 300, 5],
   ["motion.steer.stagger", 0, 2, 0.05],
   ["motion.crowd.strength", 0, 5, 0.05], ["motion.crowd.distance", 0, 150, 1], ["motion.crowd.cellPx", 2, 24, 1],
 ];
-const TOGGLES = ["motion.walls.enabled", "motion.crowd.enabled"];
+const TOGGLES = ["motion.walls.enabled", "motion.crowd.enabled", "motion.crowd.blur"];
 const get = (path: string) => path.split(".").reduce<any>((o, k) => o?.[k], stage.effect);
 const patch = (path: string, v: unknown) => path.split(".").reduceRight<any>((acc, k) => ({ [k]: acc }), v);
 stage.ready.then(() => {
